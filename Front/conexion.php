@@ -1,21 +1,27 @@
 <?php
-// Configuración de la base de datos
-$host = 'localhost'; // O la IP del servidor de base de datos
-$dbname = 'mai_shop_db'; // Nombre de tu base de datos (cámbialo por el real)
-$username = 'postgres'; // Tu usuario de PostgreSQL
-$password = 'admin'; // Tu contraseña de PostgreSQL
-$port = '5432'; // Puerto por defecto de PostgreSQL
+/**
+ * Conexión Mai Shop - Modo de Resolución Automática
+ */
 
-// Cadena de conexión (DSN)
-$dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+$host = 'localhost';
+$user = 'postgres';
+$password = '3205560180'; // Probaremos ambas versiones
+$databases = 'MaiShop';
+$port = 5432;
+$pdo = null;
+$error_msg = '';
 
-// Opciones para PDO (Manejo de errores y persistencia)
-$options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, // Lanza excepciones en caso de error
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // Devuelve arrays asociativos
-    PDO::ATTR_EMULATE_PREPARES => false, // Usa sentencias preparadas nativas
-];
+try {
+    $dsn = "pgsql:host=$host;port=$port;dbname=$databases";
+    $pdo = new PDO($dsn, $user, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    ]);
 
-// Crear la instancia de PDO
-$pdo = new PDO($dsn, $username, $password, $options);
+    // Si conecta, configuramos encoding
+    $pdo->exec("SET client_encoding TO 'UTF8'");
+
+} catch (PDOException $e) {
+    $error_msg = $e->getMessage();
+}
+
 ?>
