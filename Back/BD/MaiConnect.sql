@@ -6,6 +6,7 @@ DROP VIEW IF EXISTS vw_member_info CASCADE;
 DROP VIEW IF EXISTS vw_client_info CASCADE;
 DROP VIEW IF EXISTS vw_order_totals CASCADE;
 DROP VIEW IF EXISTS vw_seller_commissions CASCADE;
+DROP VIEW IF EXISTS vw_seller_pending_commissions CASCADE;
 
 -- Eliminar constraints circulares antes de eliminar tablas
 ALTER TABLE IF EXISTS tbl_order DROP CONSTRAINT IF EXISTS fk_order_commission_payout;
