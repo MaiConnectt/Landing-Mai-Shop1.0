@@ -1,27 +1,21 @@
 <?php
-/**
- * Conexión Mai Shop - Modo de Resolución Automática
- */
-
 $host = 'localhost';
-$user = 'postgres';
-$password = '3205560180'; // Probaremos ambas versiones
-$databases = 'MaiShop';
 $port = 5432;
-$pdo = null;
-$error_msg = '';
+$dbname = 'MaiShop';
+$user = 'postgres';
+$password = '3205560180';
 
 try {
-    $dsn = "pgsql:host=$host;port=$port;dbname=$databases";
-    $pdo = new PDO($dsn, $user, $password, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    ]);
-
-    // Si conecta, configuramos encoding
-    $pdo->exec("SET client_encoding TO 'UTF8'");
-
+    $pdo = new PDO(
+        "pgsql:host=$host;port=$port;dbname=$dbname",
+        $user,
+        $password,
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]
+    );
 } catch (PDOException $e) {
-    $error_msg = $e->getMessage();
+    die("ERROR DB: " . $e->getMessage());
 }
-
-?>
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

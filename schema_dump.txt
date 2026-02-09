@@ -1,0 +1,9 @@
+TABLE: tbl_user
+id_user, first_name, last_name, email, password, role_id, created_at, updated_at
+
+TABLE: tbl_order
+id_order, id_client, id_member, created_at, status, seller_id
+
+TABLE: tbl_payment_proof
+id_payment_proof, id_order, payment_method, proof_image_path, amount, uploaded_at, status, reviewed_by, reviewed_at, notes, team_member_id
+

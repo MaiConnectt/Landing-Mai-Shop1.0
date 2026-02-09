@@ -1,0 +1,13 @@
+TABLE: tbl_payment_proof
+id_payment_proof (integer)
+id_order (integer)
+payment_method (smallint)
+proof_image_path (character varying)
+amount (numeric)
+uploaded_at (timestamp without time zone)
+status (smallint)
+reviewed_by (integer)
+reviewed_at (timestamp without time zone)
+notes (text)
+team_member_id (integer)
+

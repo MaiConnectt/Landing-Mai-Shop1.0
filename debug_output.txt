@@ -1,0 +1,3 @@
+Error: SQLSTATE[42703]: Undefined column: 7 ERROR:  no existe la columna «commission_amount»
+LINE 1: ..._order, id_member, seller_id, status, created_at, commission...
+                                                             ^
