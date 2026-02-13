@@ -54,3 +54,7 @@ if (!isset($base))
         <span>Cerrar Sesión</span>
     </a>
 </aside>
+
+<?php include_once __DIR__ . '/../../includes/modals.php'; ?>
+<link rel="stylesheet" href="<?php echo $base; ?>/../css/mai-modal.css">
+<script src="<?php echo $base; ?>/../js/mai-modal.js"></script>

@@ -19,85 +19,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         // Get form data
-        $customer_id = $_POST['customer_id'] ?? null;
-        $customer_name = trim($_POST['customer_name'] ?? '');
-        $customer_phone = trim($_POST['customer_phone'] ?? '');
-        $customer_email = trim($_POST['customer_email'] ?? '');
-        $old_status = $_POST['old_status'] ?? '';
-        $new_status = $_POST['status'] ?? 'pending';
-        $notes = trim($_POST['notes'] ?? '');
-        $products = $_POST['products'] ?? [];
+        $id_cliente = $_POST['customer_id'] ?? null;
+        $nombre_cliente = trim($_POST['customer_name'] ?? '');
+        $telefono_cliente = trim($_POST['customer_phone'] ?? '');
+        $email_cliente = trim($_POST['customer_email'] ?? '');
+        $estado_anterior = (int) ($_POST['old_status'] ?? 0); // Assuming old_status is already an integer
+        $estado_nuevo_str = $_POST['status'] ?? 'pending';
+        $notas = trim($_POST['notes'] ?? '');
+        $productos = $_POST['products'] ?? [];
+
+        // Map status string to integer
+        $estado_map = ['pending' => 0, 'processing' => 1, 'completed' => 2, 'cancelled' => 3];
+        $estado_nuevo = $estado_map[$estado_nuevo_str] ?? 0;
 
         // Validate
-        if (empty($customer_name)) {
+        if (empty($nombre_cliente)) {
             throw new Exception('El nombre del cliente es obligatorio');
         }
 
-        if (empty($products)) {
+        if (empty($productos)) {
             throw new Exception('Debe agregar al menos un producto');
         }
 
         // Update customer if needed
-        if (!empty($customer_id)) {
+        if (!empty($id_cliente)) {
             $stmt = $pdo->prepare("
-                UPDATE tbl_customer 
-                SET name = ?, phone = ?, email = ?
-                WHERE id_customer = ?
+                UPDATE tbl_cliente 
+                SET nombre = ?, telefono = ?, email = ?
+                WHERE id_cliente = ?
             ");
-            $stmt->execute([$customer_name, $customer_phone, $customer_email, $customer_id]);
-        }
-
-        // Calculate total
-        $total_amount = 0;
-        foreach ($products as $product) {
-            if (!empty($product['name']) && !empty($product['quantity']) && !empty($product['price'])) {
-                $total_amount += $product['quantity'] * $product['price'];
-            }
+            $stmt->execute([$nombre_cliente, $telefono_cliente, $email_cliente, $id_cliente]);
         }
 
         // Update order
         $stmt = $pdo->prepare("
-            UPDATE tbl_order 
-            SET total_amount = ?, status = ?, notes = ?, updated_at = NOW()
-            WHERE id_order = ?
+            UPDATE tbl_pedido 
+            SET estado = ?, notas = ?, fecha_actualizacion = NOW()
+            WHERE id_pedido = ?
         ");
-        $stmt->execute([$total_amount, $new_status, $notes, $order_id]);
+        $stmt->execute([$estado_nuevo, $notas, $id_pedido]);
 
         // Delete old order items
-        $stmt = $pdo->prepare("DELETE FROM tbl_order_item WHERE order_id = ?");
-        $stmt->execute([$order_id]);
+        $stmt = $pdo->prepare("DELETE FROM tbl_detalle_pedido WHERE id_pedido = ?");
+        $stmt->execute([$id_pedido]);
 
         // Create new order items
         $stmt = $pdo->prepare("
-            INSERT INTO tbl_order_item (order_id, product_name, quantity, unit_price, subtotal)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO tbl_detalle_pedido (id_pedido, id_producto, cantidad, precio_unitario)
+            VALUES (?, ?, ?, ?)
         ");
 
-        foreach ($products as $product) {
-            if (!empty($product['name']) && !empty($product['quantity']) && !empty($product['price'])) {
-                $subtotal = $product['quantity'] * $product['price'];
+        foreach ($productos as $product) {
+            // Find or create product
+            $stmt_prod = $pdo->prepare("SELECT id_producto FROM tbl_producto WHERE nombre_producto = ? LIMIT 1");
+            $stmt_prod->execute([$product['name']]);
+            $id_producto = $stmt_prod->fetchColumn();
+
+            if (!$id_producto) {
+                // If product doesn't exist, create it with default stock 0
+                $stmt_new_prod = $pdo->prepare("INSERT INTO tbl_producto (nombre_producto, precio, stock) VALUES (?, ?, 0) RETURNING id_producto");
+                $stmt_new_prod->execute([$product['name'], $product['price']]);
+                $id_producto = $stmt_new_prod->fetchColumn();
+            }
+
+            if ($id_producto && !empty($product['quantity']) && !empty($product['price'])) {
                 $stmt->execute([
-                    $order_id,
-                    $product['name'],
+                    $id_pedido,
+                    $id_producto,
                     $product['quantity'],
-                    $product['price'],
-                    $subtotal
+                    $product['price']
                 ]);
             }
         }
 
         // Add history entry if status changed
-        if ($old_status !== $new_status) {
-            $stmt = $pdo->prepare("
-                INSERT INTO tbl_order_history (order_id, old_status, new_status, changed_by, changed_at, notes)
-                VALUES (?, ?, ?, ?, NOW(), 'Estado actualizado')
-            ");
-            $stmt->execute([$order_id, $old_status, $new_status, $current_user['id']]);
+        if ($estado_anterior !== $estado_nuevo) {
+            // Get current payment status for history
+            $stmt_pay = $pdo->prepare("SELECT estado_pago FROM tbl_pedido WHERE id_pedido = ?");
+            $stmt_pay->execute([$id_pedido]);
+            $pago_actual = $stmt_pay->fetchColumn();
+
+            $log = $pdo->prepare("INSERT INTO tbl_historial_pedido (id_pedido, cambiado_por, accion, estado_anterior, estado_nuevo, pago_anterior, pago_nuevo, motivo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $log->execute([
+                $id_pedido,
+                $_SESSION['user_id'],
+                'EDITAR_PEDIDO_ADMIN',
+                $estado_anterior,
+                $estado_nuevo,
+                $pago_actual,
+                $pago_actual,
+                'Detalles del pedido editados desde el panel de administración'
+            ]);
         }
 
         $pdo->commit();
 
-        header("Location: ver.php?id=$order_id&success=1");
+        header("Location: ver.php?id=$id_pedido&success=1");
         exit;
 
     } catch (Exception $e) {
@@ -110,15 +127,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 try {
     $stmt = $pdo->prepare("
         SELECT 
-            o.*,
-            c.name as customer_name,
-            c.phone as customer_phone,
-            c.email as customer_email
-        FROM tbl_order o
-        LEFT JOIN tbl_customer c ON o.customer_id = c.id_customer
-        WHERE o.id_order = ?
+            o.id_pedido,
+            o.id_cliente,
+            o.estado,
+            o.estado_pago,
+            o.notas,
+            o.fecha_creacion,
+            o.fecha_actualizacion,
+            c.nombre as customer_name,
+            c.telefono as customer_phone,
+            c.email as customer_email,
+            ot.total as total_amount
+        FROM tbl_pedido o
+        LEFT JOIN tbl_cliente c ON o.id_cliente = c.id_cliente
+        LEFT JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
+        WHERE o.id_pedido = ?
     ");
-    $stmt->execute([$order_id]);
+    $stmt->execute([$id_pedido]);
     $order = $stmt->fetch();
 
     if (!$order) {
@@ -128,12 +153,18 @@ try {
 
     // Get order items
     $stmt = $pdo->prepare("
-        SELECT * FROM tbl_order_item
-        WHERE order_id = ?
-        ORDER BY id_order_item
+        SELECT dp.id_detalle_pedido, dp.id_producto, dp.cantidad, dp.precio_unitario, p.nombre_producto as product_name 
+        FROM tbl_detalle_pedido dp
+        JOIN tbl_producto p ON dp.id_producto = p.id_producto
+        WHERE dp.id_pedido = ?
+        ORDER BY dp.id_detalle_pedido
     ");
-    $stmt->execute([$order_id]);
+    $stmt->execute([$id_pedido]);
     $items = $stmt->fetchAll();
+
+    // Map status integer to string for display
+    $status_str_map = [0 => 'pending', 1 => 'processing', 2 => 'completed', 3 => 'cancelled'];
+    $order['status_str'] = $status_str_map[$order['estado'] ?? 0] ?? 'pending';
 
 } catch (PDOException $e) {
     $error = "Error al cargar el pedido: " . $e->getMessage();
@@ -374,7 +405,7 @@ try {
             <div class="form-container">
                 <h1 class="orders-title" style="margin-bottom: var(--spacing-md);">
                     <i class="fas fa-edit"></i> Editar Pedido:
-                    <?php echo htmlspecialchars($order['order_number']); ?>
+                    #<?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>
                 </h1>
 
                 <?php if (!empty($error)): ?>
@@ -385,8 +416,8 @@ try {
                 <?php endif; ?>
 
                 <form method="POST" action="editar.php?id=<?php echo $order_id; ?>" id="orderForm">
-                    <input type="hidden" name="old_status" value="<?php echo htmlspecialchars($order['status']); ?>">
-                    <input type="hidden" name="customer_id" value="<?php echo $order['customer_id']; ?>">
+                    <input type="hidden" name="old_status" value="<?php echo htmlspecialchars($order['estado']); ?>">
+                    <input type="hidden" name="customer_id" value="<?php echo $order['id_cliente']; ?>">
 
                     <!-- Customer Section -->
                     <div class="form-section">
@@ -445,7 +476,8 @@ try {
                                                 class="product-price" min="0" step="1000"
                                                 value="<?php echo $item['unit_price']; ?>" required></td>
                                         <td><input type="text" class="product-subtotal" readonly
-                                                value="$<?php echo number_format($item['subtotal'], 0, ',', '.'); ?>"></td>
+                                                value="$<?php echo number_format($item['cantidad'] * $item['precio_unitario'], 0, ',', '.'); ?>">
+                                        </td>
                                         <td>
                                             <?php if ($index > 0): ?>
                                                 <button type="button" class="btn-remove-product"><i
@@ -478,9 +510,9 @@ try {
                             <div>
                                 <label class="form-label">Estado</label>
                                 <select name="status" class="form-select">
-                                    <option value="pending" <?php echo $order['status'] === 'pending' ? 'selected' : ''; ?>>Pendiente</option>
-                                    <option value="completed" <?php echo $order['status'] === 'completed' ? 'selected' : ''; ?>>Completado</option>
-                                    <option value="cancelled" <?php echo $order['status'] === 'cancelled' ? 'selected' : ''; ?>>Cancelado</option>
+                                    <option value="pending" <?php echo $order['status_str'] === 'pending' ? 'selected' : ''; ?>>Pendiente</option>
+                                    <option value="completed" <?php echo $order['status_str'] === 'completed' ? 'selected' : ''; ?>>Completado</option>
+                                    <option value="cancelled" <?php echo $order['status_str'] === 'cancelled' ? 'selected' : ''; ?>>Cancelado</option>
                                 </select>
                             </div>
 

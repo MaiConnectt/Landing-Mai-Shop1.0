@@ -21,7 +21,7 @@ if (!empty($status_filter)) {
 }
 
 if (!empty($search)) {
-    $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR m.university LIKE ?)";
+    $where_conditions[] = "(u.nombre LIKE ? OR u.apellido LIKE ? OR m.universidad LIKE ?)";
     $search_param = "%$search%";
     $params[] = $search_param;
     $params[] = $search_param;
@@ -51,22 +51,22 @@ try {
 // Get sellers with statistics
 $query = "
     SELECT 
-        m.id_member,
-        u.first_name,
-        u.last_name,
+        m.id_miembro,
+        u.nombre,
+        u.apellido,
         u.email,
-        m.university,
-        m.phone,
-        m.commission_percentage,
+        m.universidad,
+        m.telefono,
+        m.porcentaje_comision,
         m.status,
-        m.hire_date,
-        (SELECT COUNT(*) FROM tbl_order o WHERE o.id_member = m.id_member AND o.status = 2) as total_orders,
-        (SELECT COALESCE(SUM(ot.total),0) FROM tbl_order o JOIN vw_order_totals ot ON o.id_order = ot.id_order WHERE o.id_member = m.id_member AND o.status = 2) as total_sales,
-        (SELECT COALESCE(SUM(commission_amount),0) FROM tbl_order o WHERE o.id_member = m.id_member AND o.status = 2) as total_commissions_earned,
-        (SELECT COALESCE(SUM(commission_amount),0) FROM tbl_order o WHERE o.id_member = m.id_member AND o.status = 2 AND o.commission_payout_id IS NOT NULL) as total_paid,
-        (SELECT COALESCE(SUM(commission_amount),0) FROM tbl_order o WHERE o.id_member = m.id_member AND o.status = 2 AND o.commission_payout_id IS NULL) as balance_pending
-    FROM tbl_member m
-    INNER JOIN tbl_user u ON m.id_user = u.id_user
+        m.fecha_contratacion,
+        (SELECT COUNT(*) FROM tbl_pedido o WHERE o.id_miembro = m.id_miembro AND o.estado = 2) as total_orders,
+        (SELECT COALESCE(SUM(ot.total),0) FROM tbl_pedido o JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido WHERE o.id_miembro = m.id_miembro AND o.estado = 2) as total_sales,
+        (SELECT COALESCE(SUM(monto_comision),0) FROM tbl_pedido o WHERE o.id_miembro = m.id_miembro AND o.estado = 2) as total_commissions_earned,
+        (SELECT COALESCE(SUM(monto_comision),0) FROM tbl_pedido o WHERE o.id_miembro = m.id_miembro AND o.estado = 2 AND o.id_pago_comision IS NOT NULL) as total_paid,
+        (SELECT COALESCE(SUM(monto_comision),0) FROM tbl_pedido o WHERE o.id_miembro = m.id_miembro AND o.estado = 2 AND o.id_pago_comision IS NULL) as balance_pending
+    FROM tbl_miembro m
+    INNER JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
     $where_clause
     ORDER BY total_sales DESC
     LIMIT $records_per_page OFFSET $offset
@@ -86,11 +86,11 @@ try {
     $stats_query = "
         SELECT 
             COUNT(*) as total_sellers,
-            COUNT(CASE WHEN status = 1 OR status = 'active' THEN 1 END) as active_sellers,
-            COALESCE((SELECT SUM(ot.total) FROM tbl_order o JOIN vw_order_totals ot ON o.id_order = ot.id_order WHERE o.status = 2), 0) as total_sales_all,
-            COALESCE((SELECT SUM(commission_amount) FROM tbl_order WHERE status = 2), 0) as total_commissions_all,
-            COALESCE((SELECT SUM(commission_amount) FROM tbl_order WHERE status = 2 AND commission_payout_id IS NULL), 0) as total_pending_all
-        FROM tbl_member
+            COUNT(CASE WHEN status = 'active' THEN 1 END) as active_sellers,
+            COALESCE((SELECT SUM(ot.total) FROM tbl_pedido o JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido WHERE o.estado = 2), 0) as total_sales_all,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE estado = 2), 0) as total_commissions_all,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE estado = 2 AND id_pago_comision IS NULL), 0) as total_pending_all
+        FROM tbl_miembro
     ";
     $stats = $pdo->query($stats_query)->fetch();
 } catch (PDOException $e) {
@@ -242,7 +242,7 @@ try {
                         <div class="seller-card <?php echo $seller['status'] === 'inactive' ? 'inactive' : ''; ?>">
                             <div class="seller-header">
                                 <div class="seller-avatar">
-                                    <?php echo strtoupper(substr($seller['first_name'], 0, 1) . substr($seller['last_name'], 0, 1)); ?>
+                                    <?php echo strtoupper(substr($seller['nombre'], 0, 1) . substr($seller['apellido'], 0, 1)); ?>
                                 </div>
                                 <div class="seller-status-badge <?php echo $seller['status']; ?>">
                                     <?php echo $seller['status'] === 'active' ? 'Activo' : 'Inactivo'; ?>
@@ -251,20 +251,20 @@ try {
 
                             <div class="seller-info">
                                 <h3 class="seller-name">
-                                    <?php echo htmlspecialchars($seller['first_name'] . ' ' . $seller['last_name']); ?>
+                                    <?php echo htmlspecialchars($seller['nombre'] . ' ' . $seller['apellido']); ?>
                                 </h3>
 
-                                <?php if (!empty($seller['university'])): ?>
+                                <?php if (!empty($seller['universidad'])): ?>
                                     <p class="seller-university">
                                         <i class="fas fa-graduation-cap"></i>
-                                        <?php echo htmlspecialchars($seller['university']); ?>
+                                        <?php echo htmlspecialchars($seller['universidad']); ?>
                                     </p>
                                 <?php endif; ?>
 
                                 <p class="seller-commission">
                                     <i class="fas fa-percentage"></i>
                                     Comisión:
-                                    <?php echo number_format($seller['commission_percentage'], 1); ?>%
+                                    <?php echo number_format($seller['porcentaje_comision'], 1); ?>%
                                 </p>
                             </div>
 
@@ -290,23 +290,23 @@ try {
                             </div>
 
                             <div class="seller-actions">
-                                <a href="ver.php?id=<?php echo $seller['id_member']; ?>" class="btn-action view"
+                                <a href="ver.php?id=<?php echo $seller['id_miembro']; ?>" class="btn-action view"
                                     title="Ver detalles">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="editar.php?id=<?php echo $seller['id_member']; ?>" class="btn-action edit"
+                                <a href="editar.php?id=<?php echo $seller['id_miembro']; ?>" class="btn-action edit"
                                     title="Editar">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <?php if (!empty($seller['phone'])): ?>
-                                    <a href="https://wa.me/57<?php echo preg_replace('/[^0-9]/', '', $seller['phone']); ?>"
+                                <?php if (!empty($seller['telefono'])): ?>
+                                    <a href="https://wa.me/57<?php echo preg_replace('/[^0-9]/', '', $seller['telefono']); ?>"
                                         target="_blank" class="btn-action whatsapp" title="WhatsApp">
                                         <i class="fab fa-whatsapp"></i>
                                     </a>
                                 <?php endif; ?>
                                 <button class="btn-action delete btn-delete"
-                                    data-seller-id="<?php echo $seller['id_member']; ?>"
-                                    data-seller-name="<?php echo htmlspecialchars($seller['first_name'] . ' ' . $seller['last_name']); ?>"
+                                    data-seller-id="<?php echo $seller['id_miembro']; ?>"
+                                    data-seller-name="<?php echo htmlspecialchars($seller['nombre'] . ' ' . $seller['apellido']); ?>"
                                     title="Eliminar">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -350,23 +350,6 @@ try {
                 <?php endif; ?>
             <?php endif; ?>
         </main>
-    </div>
-
-    <!-- Confirmation Modal -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">Confirmar Acción</h3>
-                <button class="modal-close" id="modalClose">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p id="modalMessage">¿Estás seguro de realizar esta acción?</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-modal cancel" id="modalCancel">Cancelar</button>
-                <button class="btn-modal confirm" id="modalConfirm">Confirmar</button>
-            </div>
-        </div>
     </div>
 
     <script src="../dashboard.js"></script>

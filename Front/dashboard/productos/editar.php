@@ -386,24 +386,6 @@ try {
         </main>
     </div>
     
-     <!-- Confirmation Modal (using existing delete logic from productos.js?) -->
-    <!-- We might need to include productos.js or inline script -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">Confirmar Acción</h3>
-                <button class="modal-close" id="modalClose">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p id="modalMessage">¿Estás seguro de eliminar este producto?</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-modal cancel" id="modalCancel">Cancelar</button>
-                <button class="btn-modal confirm" id="modalConfirm">Confirmar</button>
-            </div>
-        </div>
-    </div>
-
     <script src="../dashboard.js"></script>
     <script src="productos.js"></script>
     <script>
@@ -429,40 +411,40 @@ try {
 
         // Basic Delete Logic for Edit Page
         function confirmDelete(id) {
-             const modal = document.getElementById('confirmModal');
-             const confirmBtn = document.getElementById('modalConfirm');
-             const cancelBtn = document.getElementById('modalCancel');
-             const closeBtn = document.getElementById('modalClose');
-             
-             modal.classList.add('active');
-             
-             const handleDelete = () => {
-                fetch('eliminar.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'id=' + id
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if(data.success) {
-                        window.location.href = 'productos.php';
-                    } else {
-                        alert(data.message);
-                    }
-                });
-                modal.classList.remove('active');
-                confirmBtn.removeEventListener('click', handleDelete);
-             };
-
-             confirmBtn.onclick = handleDelete;
-             
-             const closeModal = () => {
-                 modal.classList.remove('active');
-                 confirmBtn.removeEventListener('click', handleDelete);
-             };
-             
-             cancelBtn.onclick = closeModal;
-             closeBtn.onclick = closeModal;
+            MaiModal.confirm({
+                title: 'Eliminar Producto',
+                message: '¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.',
+                confirmText: 'Eliminar',
+                onConfirm: () => {
+                    MaiModal.showLoading('Eliminando...');
+                    fetch('eliminar.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'id=' + id
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if(data.success) {
+                            window.location.href = 'productos.php';
+                        } else {
+                            MaiModal.alert({
+                                title: 'Error',
+                                message: data.message,
+                                type: 'danger'
+                            });
+                            MaiModal.hideLoading('Eliminar');
+                        }
+                    })
+                    .catch(err => {
+                        MaiModal.alert({
+                            title: 'Error',
+                            message: 'Error al eliminar el producto.',
+                            type: 'danger'
+                        });
+                        MaiModal.hideLoading('Eliminar');
+                    });
+                }
+            });
         }
     </script>
 </body>

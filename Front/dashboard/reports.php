@@ -6,27 +6,27 @@ require_once '../conexion.php';
 
 function getSalesStats($pdo)
 {
-    // Ventas totales (Solo completadas: status = 2)
+    // Ventas totales (Solo completadas: estado = 2)
     $sql_sales = "SELECT COALESCE(SUM(ot.total), 0) as total_sales 
-                  FROM tbl_order o 
-                  JOIN vw_order_totals ot ON o.id_order = ot.id_order 
-                  WHERE o.status = 2";
+                  FROM tbl_pedido o 
+                  JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido 
+                  WHERE o.estado = 2";
     $total_sales = $pdo->query($sql_sales)->fetchColumn();
 
     // Total Pedidos (Todos)
-    $sql_orders = "SELECT COUNT(*) FROM tbl_order";
+    $sql_orders = "SELECT COUNT(*) FROM tbl_pedido";
     $total_orders = $pdo->query($sql_orders)->fetchColumn();
 
     // Ticket Promedio (Ventas Totales / Pedidos Completados)
-    $sql_completed = "SELECT COUNT(*) FROM tbl_order WHERE status = 2";
+    $sql_completed = "SELECT COUNT(*) FROM tbl_pedido WHERE estado = 2";
     $completed_orders = $pdo->query($sql_completed)->fetchColumn();
     $avg_ticket = $completed_orders > 0 ? $total_sales / $completed_orders : 0;
 
     // Productos Vendidos
-    $sql_items = "SELECT COALESCE(SUM(quantity), 0) 
-                  FROM tbl_order_detail od 
-                  JOIN tbl_order o ON od.id_order = o.id_order 
-                  WHERE o.status = 2";
+    $sql_items = "SELECT COALESCE(SUM(cantidad), 0) 
+                  FROM tbl_detalle_pedido od 
+                  JOIN tbl_pedido o ON od.id_pedido = o.id_pedido 
+                  WHERE o.estado = 2";
     $total_items = $pdo->query($sql_items)->fetchColumn();
 
     return [
@@ -42,12 +42,12 @@ function getMonthlySales($pdo)
     // Últimos 6 meses
     $sql = "
         SELECT 
-            TO_CHAR(o.created_at, 'YYYY-MM') as month,
-            TO_CHAR(o.created_at, 'Month') as month_name,
+            TO_CHAR(o.fecha_creacion, 'YYYY-MM') as month,
+            TO_CHAR(o.fecha_creacion, 'Month') as month_name,
             COALESCE(SUM(ot.total), 0) as total
-        FROM tbl_order o
-        JOIN vw_order_totals ot ON o.id_order = ot.id_order
-        WHERE o.status = 2 AND o.created_at >= NOW() - INTERVAL '6 months'
+        FROM tbl_pedido o
+        JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
+        WHERE o.estado = 2 AND o.fecha_creacion >= NOW() - INTERVAL '6 months'
         GROUP BY 1, 2
         ORDER BY 1 ASC
     ";
@@ -56,7 +56,7 @@ function getMonthlySales($pdo)
 
 function getOrdersByStatus($pdo)
 {
-    $sql = "SELECT status, COUNT(*) as count FROM tbl_order GROUP BY status";
+    $sql = "SELECT estado as status, COUNT(*) as count FROM tbl_pedido GROUP BY estado";
     return $pdo->query($sql)->fetchAll();
 }
 
@@ -64,12 +64,12 @@ function getTopProducts($pdo)
 {
     // Top 5 productos más vendidos
     $sql = "
-        SELECT p.name, SUM(od.quantity) as total_sold
-        FROM tbl_order_detail od
-        JOIN tbl_product p ON od.id_product = p.id_product
-        JOIN tbl_order o ON od.id_order = o.id_order
-        WHERE o.status = 2
-        GROUP BY p.id_product, p.name
+        SELECT p.nombre_producto as name, SUM(od.cantidad) as total_sold
+        FROM tbl_detalle_pedido od
+        JOIN tbl_producto p ON od.id_producto = p.id_producto
+        JOIN tbl_pedido o ON od.id_pedido = o.id_pedido
+        WHERE o.estado = 2
+        GROUP BY p.id_producto, p.nombre_producto
         ORDER BY total_sold DESC
         LIMIT 5
     ";

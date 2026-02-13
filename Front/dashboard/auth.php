@@ -14,7 +14,7 @@ require_once __DIR__ . '/../conexion.php';
 
 // Fetch current user information from database
 try {
-    $stmt = $pdo->prepare("SELECT * FROM tbl_user WHERE id_user = ?");
+    $stmt = $pdo->prepare("SELECT * FROM tbl_usuario WHERE id_usuario = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -32,11 +32,11 @@ try {
 } catch (PDOException $e) {
     // Fallback if DB fails
     $current_user = [
-        'id_user' => $_SESSION['user_id'],
+        'id_usuario' => $_SESSION['user_id'],
         'email' => $_SESSION['email'],
         'role' => $_SESSION['role'] ?? 'user',
-        'first_name' => 'Usuario',
-        'last_name' => ''
+        'nombre' => 'Usuario',
+        'apellido' => ''
     ];
 }
 

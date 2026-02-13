@@ -80,17 +80,17 @@ require_once 'auth.php';
             <?php
             // Fetch real dashboard stats
             try {
-                // Total Orders (All time)
-                $stmt_count = $pdo->query("SELECT COUNT(*) FROM tbl_order WHERE status != 4"); // Assuming 4 is cancelled? No, 3 (from insert script: 0=pending, 1=process, 2=completed, 3=cancelled). Wait, check dados_referencia.sql. Line 319: (4, 'order', 3, 'Cancelado'). So status 3.
+                // Total Orders (All time, excluding cancelled = 3)
+                $stmt_count = $pdo->query("SELECT COUNT(*) FROM tbl_pedido WHERE estado != 3");
                 $total_orders = $stmt_count->fetchColumn();
 
-                // Monthly Income (Completed orders only)
+                // Monthly Income (Completed orders only = 2)
                 $stmt_income = $pdo->query("
                     SELECT COALESCE(SUM(vw.total), 0) 
-                    FROM vw_order_totals vw
-                    JOIN tbl_order o ON vw.id_order = o.id_order
-                    WHERE o.status = 2 
-                    AND o.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+                    FROM vw_totales_pedido vw
+                    JOIN tbl_pedido o ON vw.id_pedido = o.id_pedido
+                    WHERE o.estado = 2 
+                    AND o.fecha_creacion >= DATE_TRUNC('month', CURRENT_DATE)
                 ");
                 $monthly_income = $stmt_income->fetchColumn();
 
@@ -168,17 +168,17 @@ require_once 'auth.php';
                             try {
                                 $sql_recent = "
                                     SELECT 
-                                        o.id_order, 
-                                        um.first_name, 
-                                        um.last_name,
+                                        o.id_pedido, 
+                                        u.nombre, 
+                                        u.apellido,
                                         ot.total,
-                                        o.status,
-                                        o.created_at
-                                    FROM tbl_order o
-                                    JOIN tbl_member m ON o.id_member = m.id_member
-                                    JOIN tbl_user um ON m.id_user = um.id_user
-                                    JOIN vw_order_totals ot ON o.id_order = ot.id_order
-                                    ORDER BY o.created_at DESC
+                                        o.estado,
+                                        o.fecha_creacion
+                                    FROM tbl_pedido o
+                                    LEFT JOIN tbl_miembro m ON o.id_member = m.id_miembro
+                                    LEFT JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+                                    JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
+                                    ORDER BY o.fecha_creacion DESC
                                     LIMIT 5
                                 ";
                                 $stmt_recent = $pdo->query($sql_recent);
@@ -190,13 +190,13 @@ require_once 'auth.php';
                                     foreach ($recent_orders as $order) {
                                         $status_class = '';
                                         $status_text = '';
-                                        switch ($order['status']) {
+                                        switch ($order['estado']) {
                                             case 0:
                                                 $status_class = 'pending';
                                                 $status_text = 'Pendiente';
                                                 break;
                                             case 1:
-                                                $status_class = 'processing'; // Usaremos pending style o similar si no hay processing definido
+                                                $status_class = 'processing';
                                                 $status_text = 'En Proceso';
                                                 break;
                                             case 2:
@@ -207,16 +207,13 @@ require_once 'auth.php';
                                                 $status_class = 'cancelled';
                                                 $status_text = 'Cancelado';
                                         }
-                                        // Ajuste de estilo para 'En Proceso' si no existe en CSS, usaremos pending con color azul in-line o clase nueva
-                                        // En dashboard.css vi: pending, completed, cancelled. 
-                                        // Agregaré estilo inline para 'processing' si es necesario, o reutilizaré.
-                            
+
                                         echo "<tr>";
-                                        echo "<td>#" . str_pad($order['id_order'], 4, '0', STR_PAD_LEFT) . "</td>";
-                                        echo "<td>" . htmlspecialchars($order['first_name'] . ' ' . $order['last_name']) . "</td>";
-                                        echo "<td>" . date('d/m/Y', strtotime($order['created_at'])) . "</td>";
+                                        echo "<td>#" . str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT) . "</td>";
+                                        echo "<td>" . htmlspecialchars(($order['nombre'] ?? 'Admin') . ' ' . ($order['apellido'] ?? '')) . "</td>";
+                                        echo "<td>" . date('d/m/Y', strtotime($order['fecha_creacion'])) . "</td>";
                                         echo "<td>$" . number_format($order['total'], 0, ',', '.') . "</td>";
-                                        echo "<td><span class='order-status " . ($order['status'] == 1 ? 'pending' : $status_class) . "' " . ($order['status'] == 1 ? "style='background:rgba(116, 235, 213, 0.2); color:#0cab9c;'" : "") . ">" . $status_text . "</span></td>";
+                                        echo "<td><span class='order-status " . ($order['estado'] == 1 ? 'pending' : $status_class) . "' " . ($order['estado'] == 1 ? "style='background:rgba(116, 235, 213, 0.2); color:#0cab9c;'" : "") . ">" . $status_text . "</span></td>";
                                         echo "</tr>";
                                     }
                                 }

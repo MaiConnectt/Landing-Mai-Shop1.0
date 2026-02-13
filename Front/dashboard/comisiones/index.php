@@ -4,7 +4,7 @@ require_once '../../conexion.php';
 
 // Auth check
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
-    header('Location: ../../../login/login.php');
+    header('Location: ../../login/login.php');
     exit;
 }
 
@@ -17,7 +17,7 @@ $current_user = [
 
 // Fetch sellers pending commissions
 try {
-    $sql = "SELECT * FROM vw_seller_pending_commissions ORDER BY pending_amount DESC";
+    $sql = "SELECT * FROM vw_seller_commissions ORDER BY balance_pending DESC";
     $stmt = $pdo->query($sql);
     $sellers = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -27,11 +27,11 @@ try {
 // Fetch payment history
 try {
     $sql_history = "
-        SELECT pp.*, u.first_name, u.last_name
-        FROM tbl_payment_proof pp
-        JOIN tbl_member m ON pp.team_member_id = m.id_member
-        JOIN tbl_user u ON m.id_user = u.id_user
-        ORDER BY pp.uploaded_at DESC
+        SELECT pp.*, u.nombre, u.apellido
+        FROM tbl_comprobante_pago pp
+        JOIN tbl_miembro m ON pp.id_miembro = m.id_miembro
+        JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+        ORDER BY pp.fecha_subida DESC
         LIMIT 5
     ";
     $history_stmt = $pdo->query($sql_history);
@@ -114,16 +114,16 @@ try {
                                         <?php echo $seller['commission_percentage']; ?>%
                                     </td>
                                     <td>
-                                        <?php echo $seller['pending_order_count']; ?> pedidos
+                                        <?php echo $seller['total_orders']; ?> pedidos
                                     </td>
                                     <td>
                                         <span style="font-weight: 700; color: var(--danger); font-size: 1.1rem;">
                                             $
-                                            <?php echo number_format($seller['pending_amount'], 0, ',', '.'); ?>
+                                            <?php echo number_format($seller['balance_pending'] ?? 0, 0, ',', '.'); ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if ($seller['pending_amount'] > 0): ?>
+                                        <?php if (($seller['balance_pending'] ?? 0) > 0): ?>
                                             <a href="pagar.php?id_member=<?php echo $seller['id_member']; ?>" class="pay-btn">
                                                 <i class="fas fa-money-bill-wave"></i> Registrar Pago
                                             </a>
@@ -161,18 +161,18 @@ try {
                         <tbody>
                             <?php foreach ($history as $pay): ?>
                                 <tr>
-                                    <td><?php echo date('d/m/Y H:i', strtotime($pay['uploaded_at'])); ?></td>
-                                    <td><?php echo htmlspecialchars($pay['first_name'] . ' ' . $pay['last_name']); ?></td>
+                                    <td><?php echo date('d/m/Y H:i', strtotime($pay['fecha_subida'])); ?></td>
+                                    <td><?php echo htmlspecialchars($pay['nombre'] . ' ' . $pay['apellido']); ?></td>
                                     <td>
                                         <span style="font-weight: 700; color: var(--success); font-size: 1rem;">
-                                            $<?php echo number_format($pay['amount'], 0, ',', '.'); ?>
+                                            $<?php echo number_format($pay['monto'] ?? 0, 0, ',', '.'); ?>
                                         </span>
                                     </td>
                                     <td>
                                         <span class="status-badge completed">Pagado</span>
                                     </td>
                                     <td>
-                                        <a href="recibo.php?id=<?php echo $pay['id_payment_proof']; ?>" class="action-btn"
+                                        <a href="recibo.php?id=<?php echo $pay['id_comprobante_pago']; ?>" class="action-btn"
                                             title="Ver Recibo" target="_blank">
                                             <i class="fas fa-file-invoice-dollar"></i>
                                         </a>

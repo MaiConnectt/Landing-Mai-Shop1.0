@@ -19,24 +19,22 @@ $where_conditions = [];
 $params = [];
 
 if ($status_filter !== '') {
-    $where_conditions[] = "o.status = ?";
+    $where_conditions[] = "o.estado = ?";
     $params[] = (int)$status_filter;
 }
 
 if (!empty($search)) {
-    $where_conditions[] = "(CONCAT(uc.first_name, ' ', uc.last_name) LIKE ? OR c.phone LIKE ?)";
-    $search_param = "%$search%";
-    $params[] = $search_param;
-    $params[] = $search_param;
+    $where_conditions[] = "o.telefono_contacto LIKE ?";
+    $params[] = "%$search%";
 }
 
 if (!empty($date_from)) {
-    $where_conditions[] = "DATE(o.created_at) >= ?";
+    $where_conditions[] = "DATE(o.fecha_creacion) >= ?";
     $params[] = $date_from;
 }
 
 if (!empty($date_to)) {
-    $where_conditions[] = "DATE(o.created_at) <= ?";
+    $where_conditions[] = "DATE(o.fecha_creacion) <= ?";
     $params[] = $date_to;
 }
 
@@ -50,7 +48,7 @@ $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_c
 // Get total count for pagination
 $count_query = "
     SELECT COUNT(*) as total
-    FROM tbl_order o
+    FROM tbl_pedido o
     $where_clause
 ";
 
@@ -67,23 +65,21 @@ try {
 // Get orders with pagination
 $query = "
     SELECT 
-        o.id_order,
-        o.created_at,
-        o.status,
+        o.id_pedido,
+        o.fecha_creacion,
+        o.estado,
+        o.estado_pago,
         ot.total,
-        CONCAT(uc.first_name, ' ', uc.last_name) as client_name,
-        c.phone as client_phone,
-        c.address as client_address,
-        CONCAT(um.first_name, ' ', um.last_name) as seller_name,
-        m.id_member as seller_id
-    FROM tbl_order o
-    INNER JOIN vw_order_totals ot ON o.id_order = ot.id_order
-    LEFT JOIN tbl_client c ON o.id_client = c.id_client
-    LEFT JOIN tbl_user uc ON c.id_user = uc.id_user
-    LEFT JOIN tbl_member m ON o.id_member = m.id_member
-    LEFT JOIN tbl_user um ON m.id_user = um.id_user
+        o.telefono_contacto,
+        o.direccion_entrega,
+        CONCAT(u.nombre, ' ', u.apellido) as seller_name,
+        m.id_miembro as seller_id
+    FROM tbl_pedido o
+    INNER JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
+    LEFT JOIN tbl_miembro m ON o.id_member = m.id_miembro
+    LEFT JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
     $where_clause
-    ORDER BY o.created_at DESC
+    ORDER BY o.fecha_creacion DESC
     LIMIT $records_per_page OFFSET $offset
 ";
 
@@ -99,11 +95,11 @@ try {
 // Get sellers for filter
 try {
     $sellers_query = "
-        SELECT m.id_member, CONCAT(u.first_name, ' ', u.last_name) as seller_name
-        FROM tbl_member m
-        INNER JOIN tbl_user u ON m.id_user = u.id_user
-        WHERE u.role_id = 2
-        ORDER BY u.first_name
+        SELECT m.id_miembro as id_member, CONCAT(u.nombre, ' ', u.apellido) as seller_name
+        FROM tbl_miembro m
+        INNER JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+        WHERE u.id_rol = 2
+        ORDER BY u.nombre
     ";
     $sellers_stmt = $pdo->query($sellers_query);
     $sellers = $sellers_stmt->fetchAll();
@@ -121,6 +117,24 @@ function getStatusBadge($status)
             return '<span class="badge processing">En Proceso</span>';
         case 2:
             return '<span class="badge completed">Completado</span>';
+        case 3:
+            return '<span class="badge error">Cancelado</span>';
+        default:
+            return '<span class="badge">Desconocido</span>';
+    }
+}
+
+function getPaymentBadge($status)
+{
+    switch ($status) {
+        case 0:
+            return '<span class="badge" style="background: #eee; color: #666;">Sin Pago</span>';
+        case 1:
+            return '<span class="badge processing">Validar</span>';
+        case 2:
+            return '<span class="badge completed">Aprobado</span>';
+        case 3:
+            return '<span class="badge error">Rechazado</span>';
         default:
             return '<span class="badge">Desconocido</span>';
     }
@@ -227,10 +241,11 @@ function getStatusBadge($status)
                             <thead>
                                 <tr>
                                     <th>Pedido #</th>
-                                    <th>Teléfono</th>
+                                    <th>Contacto</th>
                                     <th>Vendedor</th>
                                     <th>Total</th>
                                     <th>Estado</th>
+                                    <th>Pago</th>
                                     <th>Fecha</th>
                                     <th>Acciones</th>
                                 </tr>
@@ -240,11 +255,11 @@ function getStatusBadge($status)
                                     <tr>
                                         <td>
                                             <span class="order-number">
-                                                #<?php echo str_pad($order['id_order'], 4, '0', STR_PAD_LEFT); ?>
+                                                #<?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>
                                             </span>
                                         </td>
                                         <td>
-                                            <?php echo htmlspecialchars($order['client_phone'] ?? 'N/A'); ?>
+                                            <?php echo htmlspecialchars($order['telefono_contacto'] ?? 'N/A'); ?>
                                         </td>
                                         <td>
                                             <?php if ($order['seller_name']): ?>
@@ -260,25 +275,29 @@ function getStatusBadge($status)
                                             <strong>$<?php echo number_format($order['total'], 0, ',', '.'); ?></strong>
                                         </td>
                                         <td>
-                                            <?php echo getStatusBadge($order['status']); ?>
+                                            <?php echo getStatusBadge($order['estado']); ?>
                                         </td>
                                         <td>
-                                            <?php echo date('d/m/Y', strtotime($order['created_at'])); ?>
+                                            <?php echo getPaymentBadge($order['estado_pago']); ?>
+                                        </td>
+                                        <td>
+                                            <?php echo date('d/m/Y', strtotime($order['fecha_creacion'])); ?>
                                         </td>
                                         <td>
                                             <div class="action-buttons">
-                                                <a href="ver.php?id=<?php echo $order['id_order']; ?>" class="btn-action view"
+                                                <a href="ver.php?id=<?php echo $order['id_pedido']; ?>" class="btn-action view"
                                                     title="Ver detalles">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <select class="status-select" data-order-id="<?php echo $order['id_order']; ?>" title="Cambiar estado">
-                                                    <option value="0" <?php echo $order['status'] == 0 ? 'selected' : ''; ?>>Pendiente</option>
-                                                    <option value="1" <?php echo $order['status'] == 1 ? 'selected' : ''; ?>>En Proceso</option>
-                                                    <option value="2" <?php echo $order['status'] == 2 ? 'selected' : ''; ?>>Completado</option>
+                                                <select class="status-select" data-order-id="<?php echo $order['id_pedido']; ?>" title="Cambiar estado">
+                                                    <option value="0" <?php echo $order['estado'] == 0 ? 'selected' : ''; ?>>Pendiente</option>
+                                                    <option value="1" <?php echo $order['estado'] == 1 ? 'selected' : ''; ?>>En Proceso</option>
+                                                    <option value="2" <?php echo $order['estado'] == 2 ? 'selected' : ''; ?>>Completado</option>
+                                                    <option value="3" <?php echo $order['estado'] == 3 ? 'selected' : ''; ?>>Cancelado</option>
                                                 </select>
                                                 <button class="btn-action delete btn-delete"
-                                                    data-order-id="<?php echo $order['id_order']; ?>"
-                                                    data-order-number="#<?php echo str_pad($order['id_order'], 4, '0', STR_PAD_LEFT); ?>"
+                                                    data-order-id="<?php echo $order['id_pedido']; ?>"
+                                                    data-order-number="#<?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>"
                                                     title="Eliminar">
                                                     <i class="fas fa-trash"></i>
                                                 </button>

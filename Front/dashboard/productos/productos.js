@@ -10,13 +10,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const productId = this.dataset.productId;
             const productName = this.dataset.productName;
 
-            showConfirmModal(
-                'Eliminar Producto',
-                `¿Estás seguro de que deseas eliminar "${productName}"? Esta acción no se puede deshacer.`,
-                function () {
+            MaiModal.confirm({
+                title: 'Eliminar Producto',
+                message: `¿Estás seguro de que deseas eliminar "${productName}"? Esta acción no se puede deshacer.`,
+                confirmText: 'Eliminar',
+                onConfirm: () => {
                     deleteProduct(productId);
                 }
-            );
+            });
         });
     });
 
@@ -33,55 +34,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
-// Show Confirmation Modal
-function showConfirmModal(title, message, onConfirm, onCancel) {
-    const modal = document.getElementById('confirmModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalMessage = document.getElementById('modalMessage');
-    const confirmBtn = document.getElementById('modalConfirm');
-    const cancelBtn = document.getElementById('modalCancel');
-    const closeBtn = document.getElementById('modalClose');
-
-    modalTitle.textContent = title;
-    modalMessage.textContent = message;
-    modal.classList.add('active');
-
-    // Remove previous event listeners
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    const newCancelBtn = cancelBtn.cloneNode(true);
-    const newCloseBtn = closeBtn.cloneNode(true);
-
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-    closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-
-    // Confirm action
-    newConfirmBtn.addEventListener('click', function () {
-        modal.classList.remove('active');
-        if (onConfirm) onConfirm();
-    });
-
-    // Cancel action
-    function closeModal() {
-        modal.classList.remove('active');
-        if (onCancel) onCancel();
-    }
-
-    newCancelBtn.addEventListener('click', closeModal);
-    newCloseBtn.addEventListener('click', closeModal);
-
-    // Close on outside click
-    modal.addEventListener('click', function (e) {
-        if (e.target === modal) {
-            closeModal();
-        }
-    });
-}
-
 // Delete Product
 function deleteProduct(productId) {
-    // Show loading notification
-    showNotification('Eliminando producto...', 'info');
+    // Show loading in modal
+    MaiModal.showLoading('Eliminando...');
 
     // Send delete request
     fetch('eliminar.php', {
@@ -94,21 +50,32 @@ function deleteProduct(productId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                MaiModal.close();
                 showNotification('Producto eliminado exitosamente', 'success');
                 setTimeout(() => {
                     window.location.reload();
                 }, 1000);
             } else {
-                showNotification(data.message || 'Error al eliminar producto', 'error');
+                MaiModal.alert({
+                    title: 'Error',
+                    message: data.message || 'Error al eliminar producto',
+                    type: 'danger'
+                });
+                MaiModal.hideLoading('Eliminar');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            showNotification('Error al eliminar producto', 'error');
+            MaiModal.alert({
+                title: 'Error de Red',
+                message: 'No se pudo comunicar con el servidor.',
+                type: 'danger'
+            });
+            MaiModal.hideLoading('Eliminar');
         });
 }
 
-// Show Notification
+// Show Notification (Toast-style for success messages)
 function showNotification(message, type = 'info') {
     // Remove existing notifications
     const existing = document.querySelector('.notification');

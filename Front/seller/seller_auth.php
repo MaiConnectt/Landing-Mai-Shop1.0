@@ -25,15 +25,15 @@ require_once '../conexion.php';
 try {
     $stmt = $pdo->prepare("
         SELECT 
-            m.id_member,
-            m.commission_percentage,
-            m.hire_date,
-            u.first_name,
-            u.last_name,
+            m.id_miembro,
+            m.porcentaje_comision,
+            m.fecha_contratacion,
+            u.nombre,
+            u.apellido,
             u.email
-        FROM tbl_member m
-        INNER JOIN tbl_user u ON m.id_user = u.id_user
-        WHERE u.id_user = ?
+        FROM tbl_miembro m
+        INNER JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+        WHERE u.id_usuario = ?
     ");
 
     $stmt->execute([$_SESSION['user_id']]);
@@ -47,9 +47,9 @@ try {
     }
 
     // Guardar información del vendedor en la sesión
-    $_SESSION['seller_id'] = $seller['id_member'];
-    $_SESSION['seller_name'] = $seller['first_name'] . ' ' . $seller['last_name'];
-    $_SESSION['commission_percentage'] = $seller['commission_percentage'];
+    $_SESSION['seller_id'] = $seller['id_miembro'];
+    $_SESSION['seller_name'] = $seller['nombre'] . ' ' . $seller['apellido'];
+    $_SESSION['commission_percentage'] = $seller['porcentaje_comision'];
 
 } catch (PDOException $e) {
     error_log("Error en seller_auth: " . $e->getMessage());

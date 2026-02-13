@@ -6,70 +6,67 @@ require_once '../../conexion.php';
 $order_id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 if (empty($order_id)) {
-    header('Location: index.php');
+    header('Location: pedidos.php');
     exit;
 }
+
 
 // Get order details
 try {
     $stmt = $pdo->prepare("
         SELECT 
             o.*,
-            u.first_name as customer_first_name,
-            u.last_name as customer_last_name,
-            u.email as customer_email,
-            c.phone as customer_phone,
-            c.address as customer_address,
-            m.id_member,
-            su.first_name as seller_first_name,
-            su.last_name as seller_last_name,
-            su.email as seller_email,
-            vw.total as total_amount
-        FROM tbl_order o
-        LEFT JOIN tbl_client c ON o.id_client = c.id_client
-        LEFT JOIN tbl_user u ON c.id_user = u.id_user
-        LEFT JOIN tbl_member m ON o.id_member = m.id_member
-        LEFT JOIN tbl_user su ON m.id_user = su.id_user
-        LEFT JOIN vw_order_totals vw ON o.id_order = vw.id_order
-        WHERE o.id_order = ?
+            m.id_miembro,
+            u.nombre as nombre_vendedor,
+            u.apellido as apellido_vendedor,
+            u.email as email_vendedor,
+            vw.total as monto_total
+        FROM tbl_pedido o
+        LEFT JOIN tbl_miembro m ON o.id_member = m.id_miembro
+        LEFT JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+        LEFT JOIN vw_totales_pedido vw ON o.id_pedido = vw.id_pedido
+        WHERE o.id_pedido = ?
     ");
     $stmt->execute([$order_id]);
     $order = $stmt->fetch();
 
     if (!$order) {
-        header('Location: index.php');
+        header('Location: pedidos.php');
         exit;
     }
 
-    // Get order items
+    // Get order items (Spanish schema)
     $stmt = $pdo->prepare("
         SELECT 
             od.*,
-            p.product_name,
-            (od.quantity * od.unit_price) as subtotal
-        FROM tbl_order_detail od
-        LEFT JOIN tbl_product p ON od.id_product = p.id_product
-        WHERE od.id_order = ?
-        ORDER BY od.id_order_detail
+            p.nombre_producto as nombre_producto,
+            (od.cantidad * od.precio_unitario) as subtotal
+        FROM tbl_detalle_pedido od
+        LEFT JOIN tbl_producto p ON od.id_producto = p.id_producto
+        WHERE od.id_pedido = ?
+        ORDER BY od.id_detalle_pedido
     ");
     $stmt->execute([$order_id]);
     $items = $stmt->fetchAll();
 
-    // Get order history (Disabled)
-    /*
+    // Get payment proof
+    $stmt = $pdo->prepare("SELECT * FROM tbl_comprobante_pago WHERE id_pedido = ? LIMIT 1");
+    $stmt->execute([$order_id]);
+    $payment_proof = $stmt->fetch();
+
+    // Get order history
     $stmt = $pdo->prepare("
         SELECT 
             h.*,
-            u.email as changed_by_email
-        FROM tbl_order_history h
-        LEFT JOIN tbl_user u ON h.changed_by = u.id_user
-        WHERE h.order_id = ?
-        ORDER BY h.changed_at DESC
+            u.nombre as nombre_usuario,
+            u.apellido as apellido_usuario
+        FROM tbl_historial_pedido h
+        LEFT JOIN tbl_usuario u ON h.cambiado_por = u.id_usuario
+        WHERE h.id_pedido = ?
+        ORDER BY h.fecha_cambio DESC
     ");
     $stmt->execute([$order_id]);
     $history = $stmt->fetchAll();
-    */
-    $history = [];
 
 } catch (PDOException $e) {
     $error = "Error al cargar el pedido: " . $e->getMessage();
@@ -351,14 +348,14 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
             <div class="order-header">
                 <div class="order-header-left">
                     <h1>
-                        #<?php echo str_pad($order['id_order'], 4, '0', STR_PAD_LEFT); ?>
+                        #<?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>
                     </h1>
                     <div class="order-meta">
                         <span><i class="fas fa-calendar"></i>
-                            <?php echo date('d/m/Y H:i', strtotime($order['created_at'])); ?>
+                            <?php echo date('d/m/Y H:i', strtotime($order['fecha_creacion'])); ?>
                         </span>
                         <span><i class="fas fa-user-tag"></i> Vendedor:
-                            <?php echo htmlspecialchars($order['seller_first_name'] . ' ' . $order['seller_last_name']); ?>
+                            <?php echo htmlspecialchars($order['nombre_vendedor'] . ' ' . $order['apellido_vendedor']); ?>
                         </span>
                     </div>
                 </div>
@@ -366,12 +363,21 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                     <a href="pedidos.php" class="btn-action-large secondary">
                         <i class="fas fa-arrow-left"></i> Volver
                     </a>
-                    <!-- Eliminar botón de editar -->
-                    <!--
-                    <a href="editar.php?id=<?php echo $order['id_order']; ?>" class="btn-action-large primary">
-                        <i class="fas fa-edit"></i> Editar
-                    </a>
-                    -->
+
+                    <?php if ($order['estado'] == 0 && $order['estado_pago'] == 2): ?>
+                        <button onclick="handleAction('mandar_produccion')" class="btn-action-large primary"
+                            style="background: var(--gradient-secondary);">
+                            <i class="fas fa-industry"></i> Mandar a Producción
+                        </button>
+                    <?php endif; ?>
+
+                    <?php if ($order['estado'] < 2): ?>
+                        <button onclick="handleAction('cancelar_pedido', true)" class="btn-action-large secondary"
+                            style="border-color: #ff6b9d; color: #ff6b9d;">
+                            <i class="fas fa-ban"></i> Cancelar Pedido
+                        </button>
+                    <?php endif; ?>
+
                     <button onclick="window.print()" class="btn-action-large secondary">
                         <i class="fas fa-print"></i> Imprimir
                     </button>
@@ -382,7 +388,7 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
             <div class="details-grid">
                 <!-- Left Column -->
                 <div>
-                    <!-- Seller Info (Show Seller instead of Customer) -->
+                    <!-- Seller Info -->
                     <div class="detail-card" style="margin-bottom: var(--spacing-md);">
                         <h2 class="detail-card-title">
                             <i class="fas fa-user-tie"></i> Información del Vendedor
@@ -390,27 +396,33 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                         <div class="info-row">
                             <span class="info-label">Nombre:</span>
                             <span class="info-value">
-                                <?php echo htmlspecialchars($order['seller_first_name'] . ' ' . $order['seller_last_name']); ?>
+                                <?php echo htmlspecialchars($order['nombre_vendedor'] . ' ' . $order['apellido_vendedor']); ?>
                             </span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Email:</span>
                             <span class="info-value">
-                                <?php echo htmlspecialchars($order['seller_email'] ?? 'No disponible'); ?>
+                                <?php echo htmlspecialchars($order['email_vendedor'] ?? 'No disponible'); ?>
                             </span>
                         </div>
                         <!-- Client Contact (Secondary) -->
                         <div class="info-row"
                             style="margin-top: 1rem; border-top: 2px dashed var(--gray-light); padding-top: 1rem;">
-                            <span class="info-label">Teléfono Cliente (Entrega):</span>
+                            <span class="info-label">Teléfono Contacto:</span>
                             <span class="info-value">
-                                <?php echo htmlspecialchars($order['customer_phone'] ?? 'N/A'); ?>
+                                <?php echo htmlspecialchars($order['telefono_contacto'] ?? 'N/A'); ?>
                             </span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Dirección (Entrega):</span>
                             <span class="info-value">
-                                <?php echo htmlspecialchars($order['customer_address'] ?? 'N/A'); ?>
+                                <?php echo htmlspecialchars($order['direccion_entrega'] ?? 'N/A'); ?>
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Fecha Programada:</span>
+                            <span class="info-value">
+                                <?php echo date('d/m/Y', strtotime($order['fecha_entrega'])); ?>
                             </span>
                         </div>
                     </div>
@@ -433,13 +445,13 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                                 <?php foreach ($items as $item): ?>
                                     <tr>
                                         <td>
-                                            <?php echo htmlspecialchars($item['product_name']); ?>
+                                            <?php echo htmlspecialchars($item['nombre_producto']); ?>
                                         </td>
                                         <td>
-                                            <?php echo $item['quantity']; ?>
+                                            <?php echo $item['cantidad']; ?>
                                         </td>
                                         <td>$
-                                            <?php echo number_format($item['unit_price'], 0, ',', '.'); ?>
+                                            <?php echo number_format($item['precio_unitario'], 0, ',', '.'); ?>
                                         </td>
                                         <td>$
                                             <?php echo number_format($item['subtotal'], 0, ',', '.'); ?>
@@ -449,7 +461,7 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                                 <tr class="total-row">
                                     <td colspan="3" style="text-align: right;">Total:</td>
                                     <td>$
-                                        <?php echo number_format($order['total_amount'], 0, ',', '.'); ?>
+                                        <?php echo number_format($order['monto_total'], 0, ',', '.'); ?>
                                     </td>
                                 </tr>
                             </tbody>
@@ -468,7 +480,7 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                             <?php
                             $status_class = '';
                             $status_text = '';
-                            switch ($order['status']) {
+                            switch ($order['estado']) {
                                 case 0:
                                     $status_class = 'pending';
                                     $status_text = 'Pendiente';
@@ -481,15 +493,49 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                                     $status_class = 'completed';
                                     $status_text = 'Completado';
                                     break;
+                                case 3:
+                                    $status_class = 'cancelled';
+                                    $status_text = 'Cancelado';
+                                    break;
                                 default:
                                     $status_class = 'cancelled';
-                                    $status_text = 'Cancelado/Otro';
+                                    $status_text = 'Desconocido';
                             }
                             ?>
                             <span class="status-badge <?php echo $status_class; ?>"
                                 style="font-size: 1.2rem; padding: 1rem 1.5rem;">
                                 <?php echo $status_text; ?>
                             </span>
+
+                            <div
+                                style="margin-top: 1.5rem; border-top: 1px solid var(--gray-light); padding-top: 1rem;">
+                                <div class="info-label" style="margin-bottom: 0.5rem;">Estado de Pago:</div>
+                                <?php
+                                $pago_class = '';
+                                $pago_text = '';
+                                switch ($order['estado_pago']) {
+                                    case 0:
+                                        $pago_class = 'pending';
+                                        $pago_text = 'Sin Comprobante';
+                                        break;
+                                    case 1:
+                                        $pago_class = 'processing';
+                                        $pago_text = 'Por Validar';
+                                        break;
+                                    case 2:
+                                        $pago_class = 'completed';
+                                        $pago_text = 'Aprobado';
+                                        break;
+                                    case 3:
+                                        $pago_class = 'cancelled';
+                                        $pago_text = 'Rechazado';
+                                        break;
+                                }
+                                ?>
+                                <span class="status-badge <?php echo $pago_class; ?>">
+                                    <?php echo $pago_text; ?>
+                                </span>
+                            </div>
                         </div>
                         <?php if (!empty($order['notes'])): ?>
                             <div class="info-row">
@@ -503,19 +549,40 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                     </div>
 
                     <!-- Payment Proof -->
-                    <?php if (!empty($order['payment_proof'])): ?>
+                    <?php if ($payment_proof): ?>
                         <div class="detail-card" style="margin-bottom: var(--spacing-md);">
                             <h2 class="detail-card-title">
                                 <i class="fas fa-receipt"></i> Comprobante de Pago
                             </h2>
                             <div style="text-align: center; padding: var(--spacing-sm);">
-                                <a href="../../../<?php echo htmlspecialchars($order['payment_proof']); ?>" target="_blank">
-                                    <img src="../../../<?php echo htmlspecialchars($order['payment_proof']); ?>"
+                                <a href="../../../<?php echo htmlspecialchars($payment_proof['ruta_imagen']); ?>"
+                                    target="_blank">
+                                    <img src="../../../<?php echo htmlspecialchars($payment_proof['ruta_imagen']); ?>"
                                         alt="Comprobante de Pago"
                                         style="max-width: 100%; max-height: 300px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); cursor: pointer; transition: transform 0.2s;"
                                         onmouseover="this.style.transform='scale(1.02)'"
                                         onmouseout="this.style.transform='scale(1)'">
                                 </a>
+                                <div
+                                    style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+                                    <span class="info-label">Monto Reportado:</span>
+                                    <span class="info-value"
+                                        style="font-weight: 600;">$<?php echo number_format($payment_proof['monto'], 0, ',', '.'); ?></span>
+                                </div>
+
+                                <?php if ($order['estado_pago'] == 1): ?>
+                                    <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem; justify-content: center;">
+                                        <button onclick="handleAction('aprobar_pago')" class="btn-action-large primary"
+                                            style="background: #20ba5a; padding: 0.5rem 1rem;">
+                                            <i class="fas fa-check"></i> Aprobar Pago
+                                        </button>
+                                        <button onclick="handleAction('rechazar_pago', true)" class="btn-action-large secondary"
+                                            style="border-color: #ff6b9d; color: #ff6b9d; padding: 0.5rem 1rem;">
+                                            <i class="fas fa-times"></i> Rechazar
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+
                                 <p style="margin-top: 0.5rem; color: var(--gray); font-size: 0.85rem;">
                                     <i class="fas fa-search-plus"></i> Clic para ampliar
                                 </p>
@@ -523,48 +590,104 @@ $success_message = isset($_GET['success']) ? 'Pedido creado exitosamente' : '';
                         </div>
                     <?php endif; ?>
 
-                    <!-- Order History (Disabled) -->
-                    <!--
+                    <!-- Order History -->
                     <div class="detail-card">
                         <h2 class="detail-card-title">
-                            <i class="fas fa-history"></i> Historial
+                            <i class="fas fa-history"></i> Historial del Pedido
                         </h2>
                         <div class="timeline">
+                            <?php if (empty($history)): ?>
+                                <p style="color: var(--gray); font-size: 0.9rem; text-align: center;">Sin registros
+                                    históricos</p>
+                            <?php endif; ?>
                             <?php foreach ($history as $h): ?>
                                 <div class="timeline-item">
                                     <div class="timeline-date">
-                                        <?php echo date('d/m/Y H:i', strtotime($h['changed_at'])); ?>
+                                        <?php echo date('d/m/Y H:i', strtotime($h['fecha_cambio'])); ?>
                                     </div>
                                     <div class="timeline-content">
-                                        <strong>
-                                            <?php echo htmlspecialchars($h['changed_by_email']); ?>
-                                        </strong>
-                                        <?php if ($h['old_status']): ?>
-                                            cambió el estado de <strong>
-                                                <?php echo $h['old_status']; ?>
-                                            </strong> a <strong>
-                                                <?php echo $h['new_status']; ?>
-                                            </strong>
-                                        <?php else: ?>
-                                            creó el pedido
-                                        <?php endif; ?>
-                                        <?php if (!empty($h['notes'])): ?>
-                                            <br><em>
-                                                <?php echo htmlspecialchars($h['notes']); ?>
-                                            </em>
+                                        <strong><?php echo htmlspecialchars($h['accion']); ?></strong> por
+                                        <em><?php echo htmlspecialchars($h['nombre_usuario'] . ' ' . $h['apellido_usuario']); ?></em>
+                                        <?php if (!empty($h['motivo'])): ?>
+                                            <div
+                                                style="background: var(--cream); padding: 0.5rem; border-radius: 8px; font-size: 0.85rem; margin-top: 0.3rem; border-left: 3px solid var(--primary-color);">
+                                                <?php echo htmlspecialchars($h['motivo']); ?>
+                                            </div>
                                         <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     </div>
-                    -->
                 </div>
             </div>
         </main>
     </div>
 
+    <form id="actionForm" method="POST" action="../../pedidos_acciones.php" style="display:none;">
+        <input type="hidden" name="id_pedido" value="<?php echo $order_id; ?>">
+        <input type="hidden" name="action" id="formAction">
+        <input type="hidden" name="notas" id="formNotas">
+    </form>
+
     <script src="../dashboard.js"></script>
+    <script>
+        function handleAction(action, requiresNote = false) {
+            const form = document.getElementById('actionForm');
+            const formAction = document.getElementById('formAction');
+            const formNotas = document.getElementById('formNotas');
+
+            const executeAction = (note = '') => {
+                formAction.value = action;
+                formNotas.value = note;
+                form.submit();
+            };
+
+            if (requiresNote) {
+                let title = 'Motivo Requerido';
+                let message = 'Por favor, ingresa el motivo para realizar esta acción:';
+
+                if (action === 'cancelar_pedido') title = 'Cancelar Pedido';
+                if (action === 'rechazar_pago') title = 'Rechazar Pago';
+
+                MaiModal.prompt({
+                    title: title,
+                    message: message,
+                    label: 'Motivo:',
+                    placeholder: 'Escribe el motivo aquí...',
+                    onConfirm: (note) => {
+                        if (!note || note.trim() === '') {
+                            MaiModal.alert({
+                                title: 'Campo Requerido',
+                                message: 'El motivo es obligatorio para continuar.',
+                                type: 'danger'
+                            });
+                            return;
+                        }
+                        executeAction(note);
+                    }
+                });
+            } else {
+                let title = 'Confirmar Acción';
+                let message = '¿Estás seguro de realizar esta acción?';
+
+                if (action === 'mandar_produccion') {
+                    title = 'Mandar a Producción';
+                    message = '¿Confirmas que deseas enviar este pedido a producción?';
+                }
+                if (action === 'aprobar_pago') {
+                    title = 'Aprobar Pago';
+                    message = '¿Confirmas que el pago es correcto y deseas aprobarlo?';
+                }
+
+                MaiModal.confirm({
+                    title: title,
+                    message: message,
+                    onConfirm: () => executeAction()
+                });
+            }
+        }
+    </script>
 </body>
 
 </html>

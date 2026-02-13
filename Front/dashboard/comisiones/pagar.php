@@ -4,7 +4,7 @@ require_once '../../conexion.php';
 
 // Auth check
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
-    header('Location: ../../../login/login.php');
+    header('Location: ../../login/login.php');
     exit;
 }
 
@@ -16,10 +16,10 @@ if (!$id_member) {
 
 // Fetch Member Info
 $stmt = $pdo->prepare("
-    SELECT m.*, u.first_name, u.last_name, u.email 
-    FROM tbl_member m 
-    JOIN tbl_user u ON m.id_user = u.id_user 
-    WHERE m.id_member = ?
+    SELECT m.*, u.nombre, u.apellido, u.email 
+    FROM tbl_miembro m 
+    JOIN tbl_usuario u ON m.id_usuario = u.id_usuario 
+    WHERE m.id_miembro = ?
 ");
 $stmt->execute([$id_member]);
 $member = $stmt->fetch();
@@ -31,23 +31,23 @@ if (!$member) {
 // Fetch Pending Orders
 $stmt_orders = $pdo->prepare("
     SELECT 
-        o.id_order, o.created_at, o.status,
+        o.id_pedido, o.fecha_creacion, o.estado,
         ot.total as order_total,
-        o.commission_amount
-    FROM tbl_order o
-    JOIN tbl_member m ON o.id_member = m.id_member
-    JOIN vw_order_totals ot ON o.id_order = ot.id_order
+        o.monto_comision
+    FROM tbl_pedido o
+    JOIN tbl_miembro m ON o.id_member = m.id_miembro
+    JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
     WHERE o.id_member = ? 
-    AND o.status = 2 
-    AND o.commission_payout_id IS NULL
-    ORDER BY o.created_at ASC
+    AND o.estado = 2 
+    AND (o.id_pago_comision IS NULL OR o.id_pago_comision = 0)
+    ORDER BY o.fecha_creacion ASC
 ");
 $stmt_orders->execute([$id_member]);
 $orders = $stmt_orders->fetchAll();
 
 $total_commission = 0;
 foreach ($orders as $o) {
-    $total_commission += $o['commission_amount'];
+    $total_commission += $o['monto_comision'];
 }
 
 // Handle Form Submission
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         $notes = $_POST['notes'] ?? '';
-        $payment_amount = $total_commission; // Pay full amount of listed orders
+        $payment_amount = $total_commission;
         $proof_path = null;
 
         // 1. Upload Proof
@@ -81,19 +81,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // status 2 = paid/approved
         $stmt_pay = $pdo->prepare("
-            INSERT INTO tbl_payment_proof (team_member_id, amount, proof_image_path, status, notes, uploaded_at, payment_method)
+            INSERT INTO tbl_comprobante_pago (id_miembro, monto, ruta_imagen, estado, notas, fecha_subida, payment_method)
             VALUES (?, ?, ?, 2, ?, NOW(), ?)
-            RETURNING id_payment_proof
+            RETURNING id_comprobante_pago
         ");
         $stmt_pay->execute([$id_member, $payment_amount, $proof_path, $notes, $payment_method]);
         $payout_id = $stmt_pay->fetchColumn();
 
         // 3. Update Orders
         if ($payout_id) {
-            $order_ids = array_column($orders, 'id_order');
+            $order_ids = array_column($orders, 'id_pedido');
             if (!empty($order_ids)) {
                 $placeholders = implode(',', array_fill(0, count($order_ids), '?'));
-                $sql_update = "UPDATE tbl_order SET commission_payout_id = ? WHERE id_order IN ($placeholders)";
+                $sql_update = "UPDATE tbl_pedido SET id_pago_comision = ? WHERE id_pedido IN ($placeholders)";
                 $params = array_merge([$payout_id], $order_ids);
                 $stmt_update = $pdo->prepare($sql_update);
                 $stmt_update->execute($params);

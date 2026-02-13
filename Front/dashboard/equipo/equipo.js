@@ -1,58 +1,26 @@
 // Team Module JavaScript
 document.addEventListener('DOMContentLoaded', function () {
-    // Modal elements
-    const modal = document.getElementById('confirmModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalMessage = document.getElementById('modalMessage');
-    const modalClose = document.getElementById('modalClose');
-    const modalCancel = document.getElementById('modalCancel');
-    const modalConfirm = document.getElementById('modalConfirm');
-
-    let currentAction = null;
-    let currentSellerId = null;
-
     // Delete buttons
     const deleteButtons = document.querySelectorAll('.btn-delete');
     deleteButtons.forEach(button => {
         button.addEventListener('click', function () {
-            currentSellerId = this.dataset.sellerId;
+            const sellerId = this.dataset.sellerId;
             const sellerName = this.dataset.sellerName;
 
-            modalTitle.textContent = 'Eliminar Vendedor';
-            modalMessage.textContent = `¿Estás seguro de que deseas eliminar a ${sellerName}? Esta acción no se puede deshacer.`;
-
-            currentAction = 'delete';
-            modal.classList.add('active');
+            MaiModal.confirm({
+                title: 'Eliminar Vendedor',
+                message: `¿Estás seguro de que deseas eliminar a ${sellerName}? Esta acción no se puede deshacer.`,
+                confirmText: 'Eliminar',
+                onConfirm: () => {
+                    deleteSeller(sellerId);
+                }
+            });
         });
     });
 
-    // Modal close handlers
-    modalClose.addEventListener('click', closeModal);
-    modalCancel.addEventListener('click', closeModal);
-
-    modal.addEventListener('click', function (e) {
-        if (e.target === modal) {
-            closeModal();
-        }
-    });
-
-    // Modal confirm handler
-    modalConfirm.addEventListener('click', function () {
-        if (currentAction === 'delete' && currentSellerId) {
-            deleteSeller(currentSellerId);
-        }
-    });
-
-    function closeModal() {
-        modal.classList.remove('active');
-        currentAction = null;
-        currentSellerId = null;
-    }
-
     function deleteSeller(sellerId) {
         // Show loading state
-        modalConfirm.disabled = true;
-        modalConfirm.textContent = 'Eliminando...';
+        MaiModal.showLoading('Eliminando...');
 
         // Send delete request
         fetch('eliminar.php', {
@@ -68,18 +36,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Reload page to show updated list
                     window.location.reload();
                 } else {
-                    alert('Error al eliminar vendedor: ' + (data.message || 'Error desconocido'));
-                    modalConfirm.disabled = false;
-                    modalConfirm.textContent = 'Confirmar';
-                    closeModal();
+                    MaiModal.alert({
+                        title: 'Error',
+                        message: 'Error al eliminar vendedor: ' + (data.message || 'Error desconocido'),
+                        type: 'danger'
+                    });
+                    MaiModal.hideLoading('Eliminar');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error al eliminar vendedor. Por favor, intenta de nuevo.');
-                modalConfirm.disabled = false;
-                modalConfirm.textContent = 'Confirmar';
-                closeModal();
+                MaiModal.alert({
+                    title: 'Error',
+                    message: 'Error al eliminar vendedor. Por favor, intenta de nuevo.',
+                    type: 'danger'
+                });
+                MaiModal.hideLoading('Eliminar');
             });
     }
 
@@ -98,8 +70,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Keyboard shortcuts
     document.addEventListener('keydown', function (e) {
         // ESC to close modal
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            closeModal();
+        if (e.key === 'Escape') {
+            MaiModal.close();
         }
 
         // Ctrl/Cmd + K to focus search

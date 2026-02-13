@@ -150,19 +150,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const logoutLink = document.querySelector('a[href*="logout.php"]');
     if (logoutLink) {
         logoutLink.addEventListener('click', function (e) {
-            if (!confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-                e.preventDefault();
-            }
+            e.preventDefault();
+            const url = this.getAttribute('href');
+
+            MaiModal.confirm({
+                title: 'Cerrar Sesión',
+                message: '¿Estás seguro de que deseas cerrar sesión?',
+                onConfirm: () => {
+                    window.location.href = url;
+                }
+            });
         });
     }
 
     // ===== AUTO-REFRESH DATA (Optional) =====
-    // Uncomment to enable auto-refresh every 5 minutes
-    /*
-    setInterval(function() {
-        // Refresh dashboard data via AJAX
-        console.log('Refreshing dashboard data...');
-        // Add your AJAX call here
-    }, 300000); // 5 minutes
-    */
+    // ... (rest of the file)
 });

@@ -3,7 +3,7 @@ require_once 'seller_auth.php';
 
 // Obtener productos
 try {
-    $products_query = "SELECT id_product, product_name, price, stock FROM tbl_product WHERE stock > 0 ORDER BY product_name";
+    $products_query = "SELECT id_producto, nombre_producto, precio, stock FROM tbl_producto WHERE stock > 0 ORDER BY nombre_producto";
     $products_stmt = $pdo->query($products_query);
     $products = $products_stmt->fetchAll();
 } catch (PDOException $e) {
@@ -33,110 +33,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $delivery_date = $_POST['delivery_date'] ?? null;
         $notes = trim($_POST['notes'] ?? '');
         $products_data = $_POST['products'] ?? [];
-        $payment_proof_path = null;
         $total_order_amount = 0;
 
-        // Procesar comprobante de pago
-        if (isset($_FILES['payment_proof']) && $_FILES['payment_proof']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = __DIR__ . '/../../uploads/orders/';
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0777, true);
-            }
-
-            $file_extension = pathinfo($_FILES['payment_proof']['name'], PATHINFO_EXTENSION);
-            $new_filename = 'proof_' . time() . '_' . uniqid() . '.' . $file_extension;
-            $target_file = $upload_dir . $new_filename;
-
-            if (move_uploaded_file($_FILES['payment_proof']['tmp_name'], $target_file)) {
-                $payment_proof_path = 'uploads/orders/' . $new_filename;
-            } else {
-                throw new Exception("Error al subir el comprobante de pago");
-            }
-        }
 
         // Validaciones
         if (empty($client_phone)) {
-            throw new Exception("El teléfono de entrega es obligatorio");
+            throw new Exception("El teléfono de contacto es obligatorio");
+        }
+
+        if (empty($delivery_date)) {
+            throw new Exception("La fecha de entrega es obligatoria");
+        }
+
+        if (empty($client_address)) {
+            throw new Exception("La dirección de entrega es obligatoria");
         }
 
         if (empty($products_data)) {
             throw new Exception("Debes agregar al menos un producto");
         }
 
-        // Generar ID para usuario
-        $next_user_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_user), 0) + 1 as next_id FROM tbl_user");
-        $next_user_id = $next_user_id_stmt->fetch()['next_id'];
-
-        // Crear usuario para el cliente
-        $user_stmt = $pdo->prepare("
-            INSERT INTO tbl_user (id_user, first_name, last_name, email, password, role_id)
-            VALUES (?, ?, ?, ?, ?, 3)
-        ");
-
-        $final_email = 'cliente_' . time() . '@temp.com';
-        $temp_password = password_hash('temp123', PASSWORD_DEFAULT);
-
-        $user_stmt->execute([
-            $next_user_id,
-            'Cliente',
-            'Anónimo',
-            $final_email,
-            $temp_password
-        ]);
-
-        $user_id = $next_user_id;
-
-        // Generar ID para cliente
-        $next_client_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_client), 0) + 1 as next_id FROM tbl_client");
-        $next_client_id = $next_client_id_stmt->fetch()['next_id'];
-
-        // Crear cliente
-        $client_stmt = $pdo->prepare("
-            INSERT INTO tbl_client (id_client, id_user, phone, address)
-            VALUES (?, ?, ?, ?)
-        ");
-
-        $client_stmt->execute([
-            $next_client_id,
-            $user_id,
-            $client_phone,
-            $client_address
-        ]);
-
-        $client_id = $next_client_id;
-
         // Generar ID para pedido
-        $next_order_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_order), 0) + 1 as next_id FROM tbl_order");
+        $next_order_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_pedido), 0) + 1 as next_id FROM tbl_pedido");
         $next_order_id = $next_order_id_stmt->fetch()['next_id'];
+        $order_id = $next_order_id;
 
-        // Crear pedido (usar id_member en lugar de seller_id según MaiConnect.sql)
+
+        // Crear pedido
         $order_stmt = $pdo->prepare("
-            INSERT INTO tbl_order (id_order, id_client, id_member, status)
-            VALUES (?, ?, ?, 0)
+            INSERT INTO tbl_pedido (
+                id_pedido, id_member, telefono_contacto, fecha_entrega, 
+                direccion_entrega, notas, estado, estado_pago, monto_comision
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0)
         ");
 
         $order_stmt->execute([
-            $next_order_id,
-            $client_id,
-            $_SESSION['seller_id']
+            $order_id,
+            $_SESSION['seller_id'],
+            $client_phone,
+            $delivery_date,
+            $client_address,
+            $notes,
+            0 // estado_pago inicial: Sin comprobante
         ]);
 
-        $order_id = $next_order_id;
 
         // Agregar productos al pedido
         foreach ($products_data as $product_id => $quantity) {
             if ($quantity > 0) {
                 // Generar ID para detalle
-                $next_detail_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_order_detail), 0) + 1 as next_id FROM tbl_order_detail");
+                $next_detail_id_stmt = $pdo->query("SELECT COALESCE(MAX(id_detalle_pedido), 0) + 1 as next_id FROM tbl_detalle_pedido");
                 $next_detail_id = $next_detail_id_stmt->fetch()['next_id'];
 
-                // Obtener precio del producto
-                $price_stmt = $pdo->prepare("SELECT price FROM tbl_product WHERE id_product = ?");
+                // Obtener precio del producto (Spanish table)
+                $price_stmt = $pdo->prepare("SELECT precio FROM tbl_producto WHERE id_producto = ?");
                 $price_stmt->execute([$product_id]);
-                $price = $price_stmt->fetch()['price'];
+                $product = $price_stmt->fetch();
+                $price = $product['precio'];
 
                 $detail_stmt = $pdo->prepare("
-                    INSERT INTO tbl_order_detail (id_order_detail, id_order, id_product, quantity, unit_price)
+                    INSERT INTO tbl_detalle_pedido (id_detalle_pedido, id_pedido, id_producto, cantidad, precio_unitario)
                     VALUES (?, ?, ?, ?, ?)
                 ");
 
@@ -156,12 +113,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $commission_percentage = $_SESSION['commission_percentage'] ?? 5.00;
         $commission_amount = $total_order_amount * ($commission_percentage / 100);
 
-        // Actualizar pedido con la comisión (ya que se insertó antes sin ella, o podríamos haber calculado antes)
-        // Como ya insertamos el pedido arriba, hacemos un UPDATE
-        $update_order_stmt = $pdo->prepare("UPDATE tbl_order SET commission_amount = ? WHERE id_order = ?");
+        // Actualizar pedido con el monto final de comisión
+        $update_order_stmt = $pdo->prepare("UPDATE tbl_pedido SET monto_comision = ? WHERE id_pedido = ?");
         $update_order_stmt->execute([$commission_amount, $order_id]);
 
+
         $pdo->commit();
+
+        // Log History (Initial Creation)
+        try {
+            $log_stmt = $pdo->prepare("INSERT INTO tbl_historial_pedido (id_pedido, cambiado_por, accion, estado_anterior, estado_nuevo, pago_anterior, pago_nuevo, motivo) VALUES (?, ?, 'CREAR_PEDIDO', NULL, 0, NULL, 0, 'Pedido creado por el vendedor')");
+            $log_stmt->execute([$order_id, $_SESSION['user_id']]);
+        } catch (Exception $e) {
+            // Non-blocking history error
+        }
+
         $success_message = "¡Pedido #" . str_pad($order_id, 4, '0', STR_PAD_LEFT) . " creado exitosamente!";
 
         // Limpiar formulario
@@ -339,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-grid">
-    
+
 
                             <div class="form-group">
                                 <label class="form-label">Teléfono / Contacto *</label>
@@ -358,22 +324,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="text" name="client_address" class="form-input">
                         </div>
 
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Comprobante de Pago (Opcional)</label>
-                            <div style="border: 2px dashed var(--gray-300); padding: 2rem; text-align: center; border-radius: 12px; transition: all 0.3s ease; background: var(--gray-50); cursor: pointer;"
-                                onclick="document.getElementById('payment_proof').click()">
-                                <i class="fas fa-cloud-upload-alt"
-                                    style="font-size: 2rem; color: var(--primary); margin-bottom: 1rem;"></i>
-                                <p style="margin-bottom: 0.5rem; font-weight: 500;">Haz clic o arrastra la imagen aquí
-                                </p>
-                                <p style="font-size: 0.8rem; color: var(--gray-500);">Formatos: JPG, PNG</p>
-                                <input type="file" name="payment_proof" id="payment_proof" accept="image/*"
-                                    style="display: none;"
-                                    onchange="document.getElementById('fileName').textContent = this.files[0]?.name || ''">
-                                <p id="fileName" style="margin-top: 0.5rem; font-weight: 600; color: var(--primary);">
-                                </p>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Products Selection -->
@@ -387,7 +337,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="product-item">
                                     <div class="product-item-name">
                                         <i class="fas fa-cookie-bite" style="color: var(--primary);"></i>
-                                        <?php echo htmlspecialchars($product['product_name']); ?>
+                                        <?php echo htmlspecialchars($product['nombre_producto']); ?>
                                         <span style="font-size: 0.75rem; color: var(--gray-500);">
                                             (Stock:
                                             <?php echo $product['stock']; ?>)
@@ -395,12 +345,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </div>
                                     <div class="product-item-price">
                                         $
-                                        <?php echo number_format($product['price'], 0, ',', '.'); ?>
+                                        <?php echo number_format($product['precio'], 0, ',', '.'); ?>
                                     </div>
-                                    <input type="number" name="products[<?php echo $product['id_product']; ?>]"
+                                    <input type="number" name="products[<?php echo $product['id_producto']; ?>]"
                                         class="form-input quantity-input product-quantity" min="0"
                                         max="<?php echo $product['stock']; ?>" value="0"
-                                        data-price="<?php echo $product['price']; ?>">
+                                        data-price="<?php echo $product['precio']; ?>">
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -484,7 +434,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!hasProducts) {
                 e.preventDefault();
-                alert('Debes agregar al menos un producto al pedido');
+                MaiModal.alert({
+                    title: 'Pedido Incompleto',
+                    message: 'Debes agregar al menos un producto al pedido para continuar.',
+                    type: 'danger'
+                });
             }
         });
     </script>

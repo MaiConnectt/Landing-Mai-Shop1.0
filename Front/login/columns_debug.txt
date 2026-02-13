@@ -1,0 +1,28 @@
+
+Columns for tbl_pedido:
+- id_pedido
+- id_member
+- id_vendedor
+- fecha_creacion
+- estado
+- monto_comision
+- id_pago_comision
+- telefono_contacto
+- fecha_entrega
+- direccion_entrega
+- notas
+- estado_pago
+- id_cliente
+
+Columns for tbl_comprobante_pago:
+- id_comprobante_pago
+- id_pedido
+- payment_method
+- ruta_imagen
+- monto
+- fecha_subida
+- estado
+- reviewed_by
+- reviewed_at
+- notas
+- id_miembro

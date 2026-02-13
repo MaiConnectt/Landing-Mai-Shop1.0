@@ -4,7 +4,7 @@ require_once '../../conexion.php';
 
 // Auth check
 if (!isset($_SESSION['user_id']) || $_SESSION['role_id'] != 1) {
-    header('Location: ../../../login/login.php');
+    header('Location: ../../login/login.php');
     exit;
 }
 
@@ -15,11 +15,11 @@ if (!$id_payout) {
 
 // Fetch Payout Info
 $stmt = $pdo->prepare("
-    SELECT pp.*, u.first_name, u.last_name, u.email, m.university
-    FROM tbl_payment_proof pp
-    JOIN tbl_member m ON pp.team_member_id = m.id_member
-    JOIN tbl_user u ON m.id_user = u.id_user
-    WHERE pp.id_payment_proof = ?
+    SELECT pp.*, u.nombre, u.apellido, u.email, m.universidad
+    FROM tbl_comprobante_pago pp
+    JOIN tbl_miembro m ON pp.id_miembro = m.id_miembro
+    JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
+    WHERE pp.id_comprobante_pago = ?
 ");
 $stmt->execute([$id_payout]);
 $payout = $stmt->fetch();
@@ -30,11 +30,11 @@ if (!$payout) {
 
 // Fetch Orders covered by this payout
 $stmt_orders = $pdo->prepare("
-    SELECT o.id_order, o.created_at, ot.total
-    FROM tbl_order o
-    JOIN vw_order_totals ot ON o.id_order = ot.id_order
-    WHERE o.commission_payout_id = ?
-    ORDER BY o.created_at ASC
+    SELECT o.id_pedido, o.fecha_creacion, ot.total
+    FROM tbl_pedido o
+    JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
+    WHERE o.id_pago_comision = ?
+    ORDER BY o.fecha_creacion ASC
 ");
 $stmt_orders->execute([$id_payout]);
 $orders = $stmt_orders->fetchAll();
@@ -181,23 +181,23 @@ $orders = $stmt_orders->fetchAll();
         <div class="info-box">
             <h3>Beneficiario</h3>
             <p>
-                <?php echo htmlspecialchars($payout['first_name'] . ' ' . $payout['last_name']); ?>
+                <?php echo htmlspecialchars($payout['nombre'] . ' ' . $payout['apellido']); ?>
             </p>
             <p style="font-size: 14px; color: #666;">
                 <?php echo htmlspecialchars($payout['email'] ?? ''); ?>
             </p>
             <p style="font-size: 14px; color: #666;">
-                <?php echo htmlspecialchars($payout['university'] ?? ''); ?>
+                <?php echo htmlspecialchars($payout['universidad'] ?? ''); ?>
             </p>
         </div>
         <div class="info-box" style="text-align: right;">
             <h3>Recibo N°</h3>
             <p>#
-                <?php echo str_pad($payout['id_payment_proof'], 6, '0', STR_PAD_LEFT); ?>
+                <?php echo str_pad($payout['id_comprobante_pago'], 6, '0', STR_PAD_LEFT); ?>
             </p>
             <h3>Fecha de Pago</h3>
             <p>
-                <?php echo date('d/m/Y H:i', strtotime($payout['uploaded_at'])); ?>
+                <?php echo date('d/m/Y H:i', strtotime($payout['fecha_subida'])); ?>
             </p>
         </div>
     </div>
@@ -216,10 +216,10 @@ $orders = $stmt_orders->fetchAll();
                 <?php foreach ($orders as $order): ?>
                     <tr>
                         <td>
-                            <?php echo date('d/m/Y', strtotime($order['created_at'])); ?>
+                            <?php echo date('d/m/Y', strtotime($order['fecha_creacion'])); ?>
                         </td>
                         <td>#
-                            <?php echo str_pad($order['id_order'], 4, '0', STR_PAD_LEFT); ?>
+                            <?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>
                         </td>
                         <td style="text-align: right;">$
                             <?php echo number_format($order['total'], 0, ',', '.'); ?>
@@ -248,7 +248,7 @@ $orders = $stmt_orders->fetchAll();
     <div class="footer">
         Este documento sirve como constancia del pago de comisiones realizado por Mai Shop.<br>
         Generado el
-        <?php echo date('d/m/Y H:i', strtotime($payout['uploaded_at'])); ?>
+        <?php echo date('d/m/Y H:i', strtotime($payout['fecha_subida'])); ?>
     </div>
 </body>
 

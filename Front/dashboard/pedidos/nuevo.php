@@ -12,95 +12,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         // Get form data
-        $customer_id = $_POST['customer_id'] ?? null;
-        $customer_name = trim($_POST['customer_name'] ?? '');
-        $customer_phone = trim($_POST['customer_phone'] ?? '');
-        $customer_email = trim($_POST['customer_email'] ?? '');
-        $status = $_POST['status'] ?? 'pending';
-        $notes = trim($_POST['notes'] ?? '');
-        $products = $_POST['products'] ?? [];
+        $id_cliente = $_POST['customer_id'] ?? null;
+        $nombre_cliente = trim($_POST['customer_name'] ?? '');
+        $telefono_cliente = trim($_POST['customer_phone'] ?? '');
+        $email_cliente = trim($_POST['customer_email'] ?? '');
+        $estado_str = $_POST['status'] ?? 'pending';
+        $notas = trim($_POST['notes'] ?? '');
+        $productos = $_POST['products'] ?? [];
+
+        // Map status
+        $estado_map = ['pending' => 0, 'completed' => 2, 'cancelled' => 3];
+        $estado = $estado_map[$estado_str] ?? 0;
 
         // Validate
-        if (empty($customer_name)) {
+        if (empty($nombre_cliente)) {
             throw new Exception('El nombre del cliente es obligatorio');
         }
 
-        if (empty($products)) {
+        if (empty($productos)) {
             throw new Exception('Debe agregar al menos un producto');
         }
 
         // Create or get customer
-        if (empty($customer_id)) {
+        if (empty($id_cliente)) {
             // Create new customer
             $stmt = $pdo->prepare("
-                INSERT INTO tbl_customer (name, phone, email, created_at)
+                INSERT INTO tbl_cliente (nombre, telefono, email, fecha_creacion)
                 VALUES (?, ?, ?, NOW())
             ");
-            $stmt->execute([$customer_name, $customer_phone, $customer_email]);
-            $customer_id = $pdo->lastInsertId();
+            $stmt->execute([$nombre_cliente, $telefono_cliente, $email_cliente]);
+            $id_cliente = $pdo->lastInsertId();
         }
 
-        // Calculate total
+        // Calculate total and commission
         $total_amount = 0;
-        foreach ($products as $product) {
+        foreach ($productos as $product) {
             if (!empty($product['name']) && !empty($product['quantity']) && !empty($product['price'])) {
                 $total_amount += $product['quantity'] * $product['price'];
             }
         }
 
-        // Generate order number
-        $order_number = 'ORD-' . date('Ymd') . '-' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        // Get user as optional member
+        $id_miembro = null; // Admin-created orders might not have a member unless assigned
+        $monto_comision = 0;
 
         // Create order
         $stmt = $pdo->prepare("
-            INSERT INTO tbl_order (order_number, customer_id, total_amount, status, notes, created_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+            INSERT INTO tbl_pedido (id_cliente, estado, notas, fecha_creacion, monto_comision, telefono_contacto)
+            VALUES (?, ?, ?, NOW(), ?, ?)
+            RETURNING id_pedido
         ");
-        $stmt->execute([$order_number, $customer_id, $total_amount, $status, $notes, $current_user['id']]);
-        $order_id = $pdo->lastInsertId();
+        $stmt->execute([$id_cliente, $estado, $notas, $monto_comision, $telefono_cliente]);
+        $id_pedido = $stmt->fetchColumn();
 
-        // Create order items
+        // Create order items (detail)
         $stmt = $pdo->prepare("
-            INSERT INTO tbl_order_item (order_id, product_name, quantity, unit_price, subtotal)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO tbl_detalle_pedido (id_pedido, id_producto, cantidad, precio_unitario)
+            VALUES (?, ?, ?, ?)
         ");
 
-        foreach ($products as $product) {
-            if (!empty($product['name']) && !empty($product['quantity']) && !empty($product['price'])) {
-                $subtotal = $product['quantity'] * $product['price'];
+        foreach ($productos as $product) {
+            // Note: Simplification - using product name as is or finding ID
+            // Here the UI uses arbitrary names, but tbl_detalle_pedido expects id_producto
+            // For now, if it's a name, we might need a dummy product or update schema
+            // BUT wait, tbl_producto exists. We should probably find by name or create.
+            // Simplified for now assuming product 0 or creating if missing
+            $stmt_prod = $pdo->prepare("SELECT id_producto FROM tbl_producto WHERE nombre_producto = ? LIMIT 1");
+            $stmt_prod->execute([$product['name']]);
+            $id_producto = $stmt_prod->fetchColumn();
+
+            if (!$id_producto) {
+                $stmt_new_prod = $pdo->prepare("INSERT INTO tbl_producto (nombre_producto, precio, stock) VALUES (?, ?, 0) RETURNING id_producto");
+                $stmt_new_prod->execute([$product['name'], $product['price']]);
+                $id_producto = $stmt_new_prod->fetchColumn();
+            }
+
+            if ($id_producto && !empty($product['quantity']) && !empty($product['price'])) {
                 $stmt->execute([
-                    $order_id,
-                    $product['name'],
+                    $id_pedido,
+                    $id_producto,
                     $product['quantity'],
-                    $product['price'],
-                    $subtotal
+                    $product['price']
                 ]);
             }
         }
 
         // Create order history entry
-        $stmt = $pdo->prepare("
-            INSERT INTO tbl_order_history (order_id, old_status, new_status, changed_by, changed_at, notes)
-            VALUES (?, NULL, ?, ?, NOW(), 'Pedido creado')
-        ");
-        $stmt->execute([$order_id, $status, $current_user['id']]);
+        $log = $pdo->prepare("INSERT INTO tbl_historial_pedido (id_pedido, cambiado_por, accion, estado_anterior, estado_nuevo, pago_anterior, pago_nuevo, motivo) VALUES (?, ?, ?, NULL, ?, NULL, 0, ?)");
+        $log->execute([
+            $id_pedido,
+            $_SESSION['user_id'],
+            'CREAR_PEDIDO_ADMIN',
+            $estado,
+            'Pedido creado desde el panel de administración'
+        ]);
 
         // Commit transaction
         $pdo->commit();
 
         // Redirect to order details
-        header("Location: ver.php?id=$order_id&success=1");
+        header("Location: ver.php?id=$id_pedido&success=1");
         exit;
 
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction())
+            $pdo->rollBack();
         $error = $e->getMessage();
     }
 }
 
 // Get existing customers for autocomplete
 try {
-    $stmt = $pdo->query("SELECT id_customer, name, phone, email FROM tbl_customer ORDER BY name");
+    $stmt = $pdo->query("SELECT id_cliente as id_customer, nombre as name, telefono as phone, email FROM tbl_cliente ORDER BY nombre");
     $customers = $stmt->fetchAll();
 } catch (PDOException $e) {
     $customers = [];

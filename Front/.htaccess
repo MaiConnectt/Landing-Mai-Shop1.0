@@ -1,0 +1,6 @@
+# Mai Shop - Server Configuration
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+
+# Enable friendly URLs if needed in future
+RewriteEngine On

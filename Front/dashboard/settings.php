@@ -6,30 +6,31 @@ $message = '';
 $messageType = '';
 
 // Obtener datos actuales del usuario
+// Obtener datos actuales del usuario
 try {
-    $stmt = $pdo->prepare("SELECT first_name, last_name, email FROM tbl_user WHERE id_user = ?");
+    $stmt = $pdo->prepare("SELECT nombre, apellido, email FROM tbl_usuario WHERE id_usuario = ?");
     $stmt->execute([$_SESSION['user_id']]);
     $user_data = $stmt->fetch();
 } catch (PDOException $e) {
     $message = 'Error al cargar datos: ' . $e->getMessage();
     $messageType = 'error';
-    $user_data = ['first_name' => '', 'last_name' => '', 'email' => ''];
+    $user_data = ['nombre' => '', 'apellido' => '', 'email' => ''];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_profile'])) {
         // Actualizar Perfil
-        $first_name = trim($_POST['first_name']);
-        $last_name = trim($_POST['last_name']);
+        $nombre = trim($_POST['first_name']);
+        $apellido = trim($_POST['last_name']);
         $email = trim($_POST['email']);
 
         try {
-            $update = $pdo->prepare("UPDATE tbl_user SET first_name = ?, last_name = ?, email = ? WHERE id_user = ?");
-            $update->execute([$first_name, $last_name, $email, $_SESSION['user_id']]);
+            $update = $pdo->prepare("UPDATE tbl_usuario SET nombre = ?, apellido = ?, email = ? WHERE id_usuario = ?");
+            $update->execute([$nombre, $apellido, $email, $_SESSION['user_id']]);
 
             // Actualizar datos locales para reflejar cambios
-            $user_data['first_name'] = $first_name;
-            $user_data['last_name'] = $last_name;
+            $user_data['nombre'] = $nombre;
+            $user_data['apellido'] = $apellido;
             $user_data['email'] = $email;
 
             $message = 'Perfil actualizado correctamente.';
@@ -51,13 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 // Obtener contraseña actual
-                $stmt = $pdo->prepare("SELECT password FROM tbl_user WHERE id_user = ?");
+                $stmt = $pdo->prepare("SELECT contrasena FROM tbl_usuario WHERE id_usuario = ?");
                 $stmt->execute([$_SESSION['user_id']]);
                 $db_user = $stmt->fetch();
 
-                if ($db_user && password_verify($current_password, $db_user['password'])) {
+                if ($db_user && password_verify($current_password, $db_user['contrasena'])) {
                     $new_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                    $update = $pdo->prepare("UPDATE tbl_user SET password = ? WHERE id_user = ?");
+                    $update = $pdo->prepare("UPDATE tbl_usuario SET contrasena = ? WHERE id_usuario = ?");
                     $update->execute([$new_hash, $_SESSION['user_id']]);
 
                     $message = 'Contraseña actualizada correctamente.';
@@ -201,12 +202,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-group">
                             <label class="form-label">Nombre</label>
                             <input type="text" name="first_name" class="form-input"
-                                value="<?php echo htmlspecialchars($user_data['first_name']); ?>" required>
+                                value="<?php echo htmlspecialchars($user_data['nombre']); ?>" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Apellido</label>
                             <input type="text" name="last_name" class="form-input"
-                                value="<?php echo htmlspecialchars($user_data['last_name']); ?>" required>
+                                value="<?php echo htmlspecialchars($user_data['apellido']); ?>" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Correo Electrónico</label>

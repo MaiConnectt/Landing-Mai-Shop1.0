@@ -9,11 +9,11 @@ try {
 
     $stats_query = "
         SELECT 
-            (SELECT COUNT(*) FROM tbl_order WHERE id_member = ? AND status != 3) as total_orders,
-            COALESCE((SELECT SUM(ot.total) FROM tbl_order o JOIN vw_order_totals ot ON o.id_order = ot.id_order WHERE o.id_member = ? AND o.status = 2), 0) as total_sales,
-            COALESCE((SELECT SUM(commission_amount) FROM tbl_order WHERE id_member = ? AND status = 2), 0) as commissions_earned,
-            COALESCE((SELECT SUM(commission_amount) FROM tbl_order WHERE id_member = ? AND status = 2 AND commission_payout_id IS NOT NULL), 0) as total_paid,
-            COALESCE((SELECT SUM(commission_amount) FROM tbl_order WHERE id_member = ? AND status = 2 AND commission_payout_id IS NULL), 0) as balance_pending
+            (SELECT COUNT(*) FROM tbl_pedido WHERE id_member = ? AND estado != 3) as total_orders,
+            COALESCE((SELECT SUM(ot.total) FROM tbl_pedido o JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido WHERE o.id_member = ? AND o.estado = 2), 0) as total_sales,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2), 0) as commissions_earned,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2 AND id_pago_comision IS NOT NULL), 0) as total_paid,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2 AND id_pago_comision IS NULL), 0) as balance_pending
     ";
 
     $stmt = $pdo->prepare($stats_query);
@@ -33,18 +33,16 @@ try {
     // Últimos pedidos
     $orders_query = "
         SELECT 
-            o.id_order,
-            o.created_at,
-            o.status,
+            o.id_pedido,
+            o.fecha_creacion,
+            o.estado,
             ot.total,
-            CONCAT(u.first_name, ' ', u.last_name) as client_name,
+            o.telefono_contacto as client_name,
             (ot.total * ? / 100) as commission
-        FROM tbl_order o
-        INNER JOIN vw_order_totals ot ON o.id_order = ot.id_order
-        LEFT JOIN tbl_client c ON o.id_client = c.id_client
-        LEFT JOIN tbl_user u ON c.id_user = u.id_user
+        FROM tbl_pedido o
+        INNER JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
         WHERE o.id_member = ?
-        ORDER BY o.created_at DESC
+        ORDER BY o.fecha_creacion DESC
         LIMIT 5
     ";
 
@@ -235,10 +233,10 @@ function getStatusBadge($status)
                             <?php foreach ($recent_orders as $order): ?>
                                 <tr>
                                     <td>#
-                                        <?php echo str_pad($order['id_order'], 4, '0', STR_PAD_LEFT); ?>
+                                        <?php echo str_pad($order['id_pedido'], 4, '0', STR_PAD_LEFT); ?>
                                     </td>
                                     <td>
-                                        <?php echo date('d/m/Y', strtotime($order['created_at'])); ?>
+                                        <?php echo date('d/m/Y', strtotime($order['fecha_creacion'])); ?>
                                     </td>
                                     <td>$
                                         <?php echo number_format($order['total'], 0, ',', '.'); ?>
@@ -248,7 +246,7 @@ function getStatusBadge($status)
                                         <?php echo number_format($order['commission'], 0, ',', '.'); ?>
                                     </td>
                                     <td>
-                                        <?php echo getStatusBadge($order['status']); ?>
+                                        <?php echo getStatusBadge($order['estado']); ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
