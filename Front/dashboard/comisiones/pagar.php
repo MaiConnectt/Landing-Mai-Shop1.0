@@ -35,9 +35,9 @@ $stmt_orders = $pdo->prepare("
         ot.total as order_total,
         o.monto_comision
     FROM tbl_pedido o
-    JOIN tbl_miembro m ON o.id_member = m.id_miembro
+    JOIN tbl_miembro m ON o.id_vendedor = m.id_miembro
     JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
-    WHERE o.id_member = ? 
+    WHERE o.id_vendedor = ? 
     AND o.estado = 2 
     AND (o.id_pago_comision IS NULL OR o.id_pago_comision = 0)
     ORDER BY o.fecha_creacion ASC

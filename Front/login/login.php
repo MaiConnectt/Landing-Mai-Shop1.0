@@ -192,14 +192,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
 
-        <?php if (DEBUG_MODE && !empty($debug_info)): ?>
-            <div class="debug-info">
-                <strong>🔍 Debug Info:</strong>
-                <?php foreach ($debug_info as $info): ?>
-                    <div><?php echo htmlspecialchars($info); ?></div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
 
         <div class="login-header">
             <i class="fas fa-birthday-cake"></i>

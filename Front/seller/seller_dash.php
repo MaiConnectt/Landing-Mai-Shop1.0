@@ -5,15 +5,15 @@ require_once 'seller_auth.php';
 try {
     // Estadísticas generales
     // Estadísticas generales (Consultas directas para precisión)
-    $seller_id = $_SESSION['seller_id'];
+    $seller_id = $_SESSION['member_id'];
 
     $stats_query = "
         SELECT 
-            (SELECT COUNT(*) FROM tbl_pedido WHERE id_member = ? AND estado != 3) as total_orders,
-            COALESCE((SELECT SUM(ot.total) FROM tbl_pedido o JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido WHERE o.id_member = ? AND o.estado = 2), 0) as total_sales,
-            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2), 0) as commissions_earned,
-            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2 AND id_pago_comision IS NOT NULL), 0) as total_paid,
-            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_member = ? AND estado = 2 AND id_pago_comision IS NULL), 0) as balance_pending
+            (SELECT COUNT(*) FROM tbl_pedido WHERE id_vendedor = ? AND estado != 3) as total_orders,
+            COALESCE((SELECT SUM(ot.total) FROM tbl_pedido o JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido WHERE o.id_vendedor = ? AND o.estado = 2), 0) as total_sales,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_vendedor = ? AND estado = 2), 0) as commissions_earned,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_vendedor = ? AND estado = 2 AND id_pago_comision IS NOT NULL), 0) as total_paid,
+            COALESCE((SELECT SUM(monto_comision) FROM tbl_pedido WHERE id_vendedor = ? AND estado = 2 AND id_pago_comision IS NULL), 0) as balance_pending
     ";
 
     $stmt = $pdo->prepare($stats_query);
@@ -41,13 +41,13 @@ try {
             (ot.total * ? / 100) as commission
         FROM tbl_pedido o
         INNER JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
-        WHERE o.id_member = ?
+        WHERE o.id_vendedor = ?
         ORDER BY o.fecha_creacion DESC
         LIMIT 5
     ";
 
     $stmt = $pdo->prepare($orders_query);
-    $stmt->execute([$_SESSION['commission_percentage'], $_SESSION['seller_id']]);
+    $stmt->execute([$_SESSION['commission_percentage'], $_SESSION['member_id']]);
     $recent_orders = $stmt->fetchAll();
 
 } catch (PDOException $e) {

@@ -8,8 +8,8 @@ $current_page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 $offset = ($current_page - 1) * $records_per_page;
 
 // Construir consulta
-$where_clause = "WHERE o.id_member = ?";
-$params = [$_SESSION['seller_id']];
+$where_clause = "WHERE o.id_vendedor = ?";
+$params = [$_SESSION['member_id']];
 
 if ($status_filter >= 0) {
     $where_clause .= " AND o.estado = ?";
@@ -108,7 +108,7 @@ function getPaymentBadge($status)
             <div class="page-header">
                 <h1>Mis Pedidos</h1>
                 <p>Historial de ventas realizadas</p>
-                
+
                 <?php
                 $success_msg = $_SESSION['success'] ?? null;
                 $error_msg = $_SESSION['error'] ?? null;
@@ -116,14 +116,16 @@ function getPaymentBadge($status)
                 ?>
 
                 <?php if ($success_msg): ?>
-                    <div class="alert alert-success" style="margin-top: 1rem; padding: 1rem 1.5rem; border-radius: 12px; background: #e6f9f0; color: #22543d; display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="alert alert-success"
+                        style="margin-top: 1rem; padding: 1rem 1.5rem; border-radius: 12px; background: #e6f9f0; color: #22543d; display: flex; align-items: center; gap: 0.75rem;">
                         <i class="fas fa-check-circle"></i>
                         <?php echo $success_msg; ?>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($error_msg): ?>
-                    <div class="alert alert-error" style="margin-top: 1rem; padding: 1rem 1.5rem; border-radius: 12px; background: #ffe6e6; color: #c53030; display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="alert alert-error"
+                        style="margin-top: 1rem; padding: 1rem 1.5rem; border-radius: 12px; background: #ffe6e6; color: #c53030; display: flex; align-items: center; gap: 0.75rem;">
                         <i class="fas fa-exclamation-triangle"></i>
                         <?php echo $error_msg; ?>
                     </div>
@@ -290,7 +292,7 @@ function getPaymentBadge($status)
             fileInput.value = ''; // Reset file input
         }
 
-        uploadForm.addEventListener('submit', function(e) {
+        uploadForm.addEventListener('submit', function (e) {
             if (fileInput.files.length > 0) {
                 const fileSize = fileInput.files[0].size / 1024 / 1024; // in MB
                 if (fileSize > MAX_SIZE_MB) {

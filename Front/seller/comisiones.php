@@ -4,7 +4,7 @@ require_once 'seller_auth.php';
 // Obtener estadísticas de comisiones
 try {
     $stats = $pdo->prepare("SELECT * FROM vw_seller_commissions WHERE id_member = ?");
-    $stats->execute([$_SESSION['seller_id']]);
+    $stats->execute([$_SESSION['member_id']]);
     $commission_stats = $stats->fetch();
 
     if (!$commission_stats) {

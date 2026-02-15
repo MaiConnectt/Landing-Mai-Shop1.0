@@ -23,7 +23,7 @@ try {
     $pdo->beginTransaction();
 
     // Get current state
-    $stmt = $pdo->prepare("SELECT estado, estado_pago, id_member FROM tbl_pedido WHERE id_pedido = ?");
+    $stmt = $pdo->prepare("SELECT estado, estado_pago, id_vendedor FROM tbl_pedido WHERE id_pedido = ?");
     $stmt->execute([$id_pedido]);
     $order = $stmt->fetch();
 
@@ -45,7 +45,7 @@ try {
             if ($role_id != 2)
                 throw new Exception("Solo los vendedores pueden subir pagos");
             // Check if seller owns the order
-            if ($order['id_member'] != $_SESSION['seller_id'])
+            if ($order['id_vendedor'] != $_SESSION['member_id'])
                 throw new Exception("No tienes permiso sobre este pedido");
 
             if ($pago_anterior != 0 && $pago_anterior != 3)

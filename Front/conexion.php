@@ -1,9 +1,9 @@
 <?php
-$host = 'localhost';
+$host = '10.5.213.111';
 $port = 5432;
-$dbname = 'MaiShop';
-$user = 'postgres';
-$password = '3205560180';
+$dbname = 'db_evolution';
+$user = 'mdavid';
+$password = '3205560180m';
 
 try {
     $pdo = new PDO(

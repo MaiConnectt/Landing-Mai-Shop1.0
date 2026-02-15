@@ -39,7 +39,7 @@ if (!empty($date_to)) {
 }
 
 if (!empty($seller_filter)) {
-    $where_conditions[] = "o.id_member = ?";
+    $where_conditions[] = "o.id_vendedor = ?";
     $params[] = $seller_filter;
 }
 
@@ -76,7 +76,7 @@ $query = "
         m.id_miembro as seller_id
     FROM tbl_pedido o
     INNER JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
-    LEFT JOIN tbl_miembro m ON o.id_member = m.id_miembro
+    LEFT JOIN tbl_miembro m ON o.id_vendedor = m.id_miembro
     LEFT JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
     $where_clause
     ORDER BY o.fecha_creacion DESC

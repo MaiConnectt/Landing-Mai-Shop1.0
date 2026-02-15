@@ -24,7 +24,7 @@ try {
         COALESCE(SUM(CASE WHEN o.estado = 2 AND o.id_pago_comision IS NULL THEN o.monto_comision ELSE 0 END), 0) as saldo_pendiente
     FROM tbl_miembro m
     JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
-    LEFT JOIN tbl_pedido o ON m.id_miembro = o.id_member
+    LEFT JOIN tbl_pedido o ON m.id_miembro = o.id_vendedor
     LEFT JOIN vw_totales_pedido ot ON o.id_pedido = ot.id_pedido
     GROUP BY 
         m.id_miembro, 
@@ -51,7 +51,7 @@ try {
         COALESCE(SUM(o.monto_comision), 0) as pending_amount
     FROM tbl_miembro m
     JOIN tbl_usuario u ON m.id_usuario = u.id_usuario
-    JOIN tbl_pedido o ON m.id_miembro = o.id_member
+    JOIN tbl_pedido o ON m.id_miembro = o.id_vendedor
     WHERE o.estado = 2 AND o.id_pago_comision IS NULL
     GROUP BY m.id_miembro, u.nombre, u.apellido, m.porcentaje_comision;
     ";

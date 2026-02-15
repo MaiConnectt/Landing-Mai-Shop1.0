@@ -55,10 +55,18 @@ CREATE TABLE tbl_usuario (
     CONSTRAINT fk_usuario_rol FOREIGN KEY (id_rol) REFERENCES tbl_rol (id_role)
 );
 
--- Usuario admin por defecto (contraseña: admin123)
--- Hash generado con password_hash('admin123', PASSWORD_DEFAULT)
+-- Usuarios por defecto (idempotente - reejecutar no cambia contraseñas)
+-- Admin (contraseña: admin123)
+-- Vendedor (contraseña: vendedor123)
+-- Hashes FIJOS generados con password_hash('password', PASSWORD_BCRYPT) y verificados
 INSERT INTO tbl_usuario (nombre, apellido, email, contrasena, id_rol) VALUES
-('Admin', 'Sistema', 'admin@maishop.com', '$2y$10$.zqN1KAAa8I8NWiCrz5gI4NCNjYGUqNm', 1);
+('Admin', 'Sistema', 'admin@maishop.com', '$2y$10$cnwQTD8nHIx2Z1qIUrCaouWcDtyyoVkGzE4TNfXlrByIgLUSV5/0S', 1),
+('Juan', 'Pérez', 'vendedor@maishop.com', '$2y$10$mXYW56m2us6UIU/d7l36Supd193Puln2wsHbk8Jzqpbq.xb25L2lK', 2)
+ON CONFLICT (email) DO UPDATE SET
+    contrasena = EXCLUDED.contrasena,
+    nombre = EXCLUDED.nombre,
+    apellido = EXCLUDED.apellido,
+    id_rol = EXCLUDED.id_rol;
 
 -- Tabla de miembros del equipo (vendedores)
 CREATE TABLE tbl_miembro (
@@ -72,6 +80,13 @@ CREATE TABLE tbl_miembro (
     notas TEXT,
     CONSTRAINT fk_miembro_usuario FOREIGN KEY (id_usuario) REFERENCES tbl_usuario (id_usuario) ON DELETE CASCADE
 );
+
+-- Insertar el vendedor en tbl_miembro
+-- Buscar el id_usuario del vendedor recién creado
+INSERT INTO tbl_miembro (id_usuario, porcentaje_comision, estado)
+SELECT id_usuario, 15.00, 'activo'
+FROM tbl_usuario
+WHERE email = 'vendedor@maishop.com';
 
 -- Tabla de productos
 CREATE TABLE tbl_producto (

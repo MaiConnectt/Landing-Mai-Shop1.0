@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Crear pedido
         $order_stmt = $pdo->prepare("
             INSERT INTO tbl_pedido (
-                id_pedido, id_member, telefono_contacto, fecha_entrega, 
+                id_pedido, id_vendedor, telefono_contacto, fecha_entrega, 
                 direccion_entrega, notas, estado, estado_pago, monto_comision
             )
             VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0)
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $order_stmt->execute([
             $order_id,
-            $_SESSION['seller_id'],
+            $_SESSION['member_id'],
             $client_phone,
             $delivery_date,
             $client_address,
